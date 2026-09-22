@@ -24,7 +24,7 @@ use crate::framebuffer::Framebuffer;
 use crate::island::build_base;
 use crate::light::Light;
 use crate::materials::BlockMaterials;
-use crate::ray_intersect::{Intersect, Material, RayIntersect};
+use crate::ray_intersect::{BlockFace, Intersect, Material, RayIntersect};
 use crate::skybox::Skybox;
 use crate::texture::TextureLibrary;
 use crate::time_of_day::TimeOfDay;
@@ -39,6 +39,7 @@ const REFLECTION_BIAS: f32 = 1e-3;
 const REFRACTION_EXIT_BIAS: f32 = 1.01;
 const MAX_DEPTH: u32 = 3;
 const TIME_SPEED: f32 = 0.055;
+const ZOOM_SPEED: f32 = 9.0;
 
 pub fn reflect(incident: &Vec3, normal: &Vec3) -> Vec3 {
     *incident - *normal * (2.0 * incident.dot(*normal))
@@ -88,6 +89,30 @@ fn material_transparency(material: &Material, texture_alpha: f32) -> f32 {
     }
 }
 
+fn texture_uv(intersect: &Intersect) -> (f32, f32) {
+    let scale = intersect.material.world_uv_scale;
+    if scale <= 0.0 {
+        return intersect.uv;
+    }
+
+    match intersect.face {
+        BlockFace::NegativeY | BlockFace::PositiveY => {
+            (intersect.point.x * scale, intersect.point.z * scale)
+        }
+        BlockFace::NegativeX | BlockFace::PositiveX => {
+            (intersect.point.z * scale, intersect.point.y * scale)
+        }
+        BlockFace::NegativeZ | BlockFace::PositiveZ => {
+            (intersect.point.x * scale, intersect.point.y * scale)
+        }
+    }
+}
+
+fn texture_alpha(textures: &TextureLibrary, intersect: &Intersect) -> f32 {
+    let (u, v) = texture_uv(intersect);
+    textures.sample_alpha(intersect.material.texture_for(intersect.face), u, v)
+}
+
 fn cast_shadow(
     intersect: &Intersect,
     light_direction: &Vec3,
@@ -101,8 +126,7 @@ fn cast_shadow(
         object
             .ray_intersect(&origin, light_direction)
             .is_some_and(|hit| {
-                let alpha =
-                    textures.sample_alpha(hit.material.texture_for(hit.face), hit.uv.0, hit.uv.1);
+                let alpha = texture_alpha(textures, &hit);
                 hit.distance < light_distance
                     && material_transparency(&hit.material, alpha) < 0.5
                     && hit.material.emission_strength <= 0.0
@@ -147,10 +171,11 @@ fn shade(
     objects: &[Box<dyn RayIntersect>],
     textures: &TextureLibrary,
 ) -> Color {
+    let (u, v) = texture_uv(intersect);
     let surface_color = textures.sample(
         intersect.material.texture_for(intersect.face),
-        intersect.uv.0,
-        intersect.uv.1,
+        u,
+        v,
         intersect.material.diffuse,
     );
     let ambient = surface_color * (intersect.material.albedo * light.ambient);
@@ -209,11 +234,7 @@ fn cast_ray(
     let Some(intersect) = closest else {
         return skybox.sample(ray_direction);
     };
-    let alpha = textures.sample_alpha(
-        intersect.material.texture_for(intersect.face),
-        intersect.uv.0,
-        intersect.uv.1,
-    );
+    let alpha = texture_alpha(textures, &intersect);
     if alpha < intersect.material.alpha_cutoff {
         let origin = advance_past_voxel(intersect.point, *ray_direction);
         return cast_ray(
@@ -447,11 +468,11 @@ fn main() {
             }
         }
         if window.is_key_down(Key::W) {
-            camera.zoom(-0.2);
+            camera.zoom(-ZOOM_SPEED * elapsed);
             camera_moved = true;
         }
         if window.is_key_down(Key::S) {
-            camera.zoom(0.2);
+            camera.zoom(ZOOM_SPEED * elapsed);
             camera_moved = true;
         }
         let time_delta = if window.is_key_down(Key::Q) {

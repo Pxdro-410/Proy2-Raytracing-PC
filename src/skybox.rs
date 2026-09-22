@@ -1,19 +1,6 @@
 use crate::color::Color;
 use crate::vec3::Vec3;
 
-const STARS: &[(f32, f32, f32, f32)] = &[
-    (-0.67, 0.72, -0.18, 0.004),
-    (-0.42, 0.88, 0.31, 0.003),
-    (-0.12, 0.63, -0.76, 0.005),
-    (0.18, 0.91, -0.24, 0.003),
-    (0.39, 0.68, 0.58, 0.004),
-    (0.61, 0.78, -0.12, 0.003),
-    (0.74, 0.55, 0.39, 0.005),
-    (-0.81, 0.49, 0.31, 0.003),
-    (0.04, 0.82, 0.53, 0.003),
-    (-0.32, 0.57, 0.68, 0.004),
-];
-
 /// Fondo atmosférico continuo, sin geometría ni caras visibles.
 /// proporciona color para los rayos que no golpean la isla.
 pub struct Skybox {
@@ -76,18 +63,73 @@ impl Skybox {
             color = blend(color, Color::new(221, 231, 255), 1.0 - self.daylight);
         }
         let star_visibility = (1.0 - self.daylight).powi(2);
-        if star_visibility > 0.01 && is_star(direction) {
-            color = blend(color, Color::new(232, 239, 255), star_visibility);
+        if let Some((star_intensity, star_color)) = star_sample(direction) {
+            color = blend(color, star_color, star_visibility * star_intensity);
         }
 
         color
     }
 }
 
-fn is_star(direction: Vec3) -> bool {
-    STARS
-        .iter()
-        .any(|&(x, y, z, size)| square_disc(direction, Vec3::new(x, y, z).normalize(), size))
+/// Campo estelar determinista sobre toda la esfera, incluyendo las zonas que
+/// se ven bajo la isla.
+fn star_sample(direction: Vec3) -> Option<(f32, Color)> {
+    const COLUMNS: i32 = 72;
+    const ROWS: i32 = 36;
+
+    let u = direction.z.atan2(direction.x) / std::f32::consts::TAU + 0.5;
+    let v = direction.y.clamp(-1.0, 1.0).asin() / std::f32::consts::PI + 0.5;
+    let cell_x = (u * COLUMNS as f32).floor() as i32;
+    let cell_y = (v * ROWS as f32).floor() as i32;
+
+    let mut sample = None;
+    for offset_y in -1..=1 {
+        let y = cell_y + offset_y;
+        if !(0..ROWS).contains(&y) {
+            continue;
+        }
+        for offset_x in -1..=1 {
+            let x = (cell_x + offset_x).rem_euclid(COLUMNS);
+            if hash(x, y, 0) > 0.34 {
+                continue;
+            }
+            let center_u = (x as f32 + hash(x, y, 1)) / COLUMNS as f32;
+            let center_v = (y as f32 + hash(x, y, 2)) / ROWS as f32;
+            let delta_u = (u - center_u).abs().min(1.0 - (u - center_u).abs());
+            let delta_v = (v - center_v).abs();
+            // Estrellas cuadradas, pequeñas y sin el aspecto de pÃ­xel blanco
+            // grande: aproximadamente uno a tres pixels en el encuadre.
+            let size = 0.000_25 + hash(x, y, 3) * 0.000_45;
+            if delta_u < size && delta_v < size {
+                let intensity = 0.45 + hash(x, y, 4) * 0.35;
+                if sample.map_or(true, |(strongest, _)| intensity > strongest) {
+                    sample = Some((intensity, star_color(hash(x, y, 5))));
+                }
+            }
+        }
+    }
+    sample
+}
+
+fn star_color(variant: f32) -> Color {
+    if variant < 0.28 {
+        Color::new(155, 169, 186) // gris fri­o tenue
+    } else if variant < 0.62 {
+        Color::new(169, 193, 220) // celeste tenue
+    } else if variant < 0.84 {
+        Color::new(190, 200, 211) // gris azulado
+    } else {
+        Color::new(183, 211, 235) // azul fri­o brillante
+    }
+}
+
+fn hash(x: i32, y: i32, salt: i32) -> f32 {
+    let mut value = x
+        .wrapping_mul(374_761_393)
+        .wrapping_add(y.wrapping_mul(668_265_263))
+        .wrapping_add(salt.wrapping_mul(982_451_653));
+    value = (value ^ (value >> 13)).wrapping_mul(1_274_126_177);
+    ((value ^ (value >> 16)) & 0x00ff_ffff) as f32 / 0x00ff_ffff as f32
 }
 
 fn square_disc(direction: Vec3, center: Vec3, half_size: f32) -> bool {
@@ -137,4 +179,38 @@ fn lerp_channel(from: u8, to: u8, amount: f32) -> u8 {
 fn smoothstep(edge_start: f32, edge_end: f32, value: f32) -> f32 {
     let t = ((value - edge_start) / (edge_end - edge_start)).clamp(0.0, 1.0);
     t * t * (3.0 - 2.0 * t)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn stars_exist_above_and_below_the_horizon() {
+        assert!(has_star_in_rows(0, 18));
+        assert!(has_star_in_rows(18, 36));
+    }
+
+    fn has_star_in_rows(start_row: i32, end_row: i32) -> bool {
+        for y in start_row..end_row {
+            for x in 0..72 {
+                if hash(x, y, 0) > 0.34 {
+                    continue;
+                }
+                let u = (x as f32 + hash(x, y, 1)) / 72.0;
+                let v = (y as f32 + hash(x, y, 2)) / 36.0;
+                let longitude = (u - 0.5) * std::f32::consts::TAU;
+                let latitude = (v - 0.5) * std::f32::consts::PI;
+                let direction = Vec3::new(
+                    latitude.cos() * longitude.cos(),
+                    latitude.sin(),
+                    latitude.cos() * longitude.sin(),
+                );
+                if star_sample(direction).is_some() {
+                    return true;
+                }
+            }
+        }
+        false
+    }
 }

@@ -1,6 +1,6 @@
 use std::f32::consts::TAU;
 
-use crate::color::Color;
+use crate::materials::BlockMaterials;
 use crate::ray_intersect::Material;
 use crate::world::VoxelWorld;
 
@@ -17,10 +17,10 @@ const LAYERS: &[(i32, i32)] = &[
     (-6, ISLAND_RADIUS - 23),
 ];
 
-pub fn build_base() -> VoxelWorld {
-    let overworld = matte(Color::new(79, 151, 93));
-    let nether = matte(Color::new(139, 58, 56));
-    let end = matte(Color::new(202, 191, 112));
+pub fn build_base(materials: &BlockMaterials) -> VoxelWorld {
+    let overworld = materials.grass;
+    let nether = materials.netherrack;
+    let end = materials.end_stone;
     let mut world = VoxelWorld::new();
 
     for (layer_index, &(y, radius)) in LAYERS.iter().enumerate() {
@@ -52,10 +52,10 @@ pub fn build_base() -> VoxelWorld {
         }
     }
 
-    build_overworld_preview(&mut world);
-    build_nether_preview(&mut world);
-    build_end_preview(&mut world);
-    build_central_statue_and_bridges(&mut world);
+    build_overworld_preview(&mut world, materials);
+    build_nether_preview(&mut world, materials);
+    build_end_preview(&mut world, materials);
+    build_central_statue_and_bridges(&mut world, materials);
 
     world
 }
@@ -97,13 +97,13 @@ fn is_statue_clearance_border(x: i32, z: i32) -> bool {
 
 /// Construcciones de escala en colores planos. Las texturas y los detalles se
 /// aplicarán después de aprobar el tamaño y la composición.
-fn build_overworld_preview(world: &mut VoxelWorld) {
-    let foundation = matte(Color::new(112, 112, 116));
-    let wall = matte(Color::new(168, 122, 74));
-    let roof = matte(Color::new(83, 63, 52));
-    let glass = matte(Color::new(105, 180, 220));
-    let trunk = matte(Color::new(116, 80, 48));
-    let leaves = matte(Color::new(63, 125, 70));
+fn build_overworld_preview(world: &mut VoxelWorld, materials: &BlockMaterials) {
+    let foundation = materials.cobblestone;
+    let wall = materials.oak_log;
+    let roof = materials.black_terracotta;
+    let glass = materials.glass;
+    let trunk = materials.cherry_log;
+    let leaves = materials.cherry_leaves;
 
     // Casa Skyblock: 7 x 7 bloques, con techo escalonado de dos niveles.
     fill_box(world, 15, 1, 16, 21, 1, 22, foundation);
@@ -130,11 +130,12 @@ fn build_overworld_preview(world: &mut VoxelWorld) {
     fill_box(world, 25, 1, 21, 25, 5, 21, trunk);
     fill_box(world, 23, 6, 19, 27, 7, 23, leaves);
     fill_box(world, 24, 8, 20, 26, 8, 22, leaves);
+    fill_box(world, 27, 1, 13, 30, 1, 16, materials.water);
 }
 
-fn build_nether_preview(world: &mut VoxelWorld) {
-    let brick = matte(Color::new(122, 52, 56));
-    let dark_brick = matte(Color::new(74, 35, 43));
+fn build_nether_preview(world: &mut VoxelWorld, materials: &BlockMaterials) {
+    let brick = materials.nether_bricks;
+    let dark_brick = materials.black_terracotta;
 
     // Dos torres y una fachada con arco: fortaleza compacta de 9 x 9 bloques.
     build_tower(world, -21, -4, brick, dark_brick);
@@ -149,12 +150,13 @@ fn build_nether_preview(world: &mut VoxelWorld) {
         }
     }
     fill_box(world, -20, 4, -1, -20, 4, 1, dark_brick);
+    fill_box(world, -30, 1, -8, -27, 1, -5, materials.lava);
 }
 
-fn build_end_preview(world: &mut VoxelWorld) {
-    let pillar = matte(Color::new(40, 43, 51));
-    let gold = matte(Color::new(220, 181, 55));
-    let crystal = matte(Color::new(211, 88, 189));
+fn build_end_preview(world: &mut VoxelWorld, materials: &BlockMaterials) {
+    let pillar = materials.black_wool;
+    let gold = materials.gold;
+    let crystal = materials.magenta_glass;
 
     // Santuario: cuatro pilares de 3 x 3 y un altar central.
     for (x, z) in [(13, -26), (19, -26), (13, -20), (19, -20)] {
@@ -167,13 +169,13 @@ fn build_end_preview(world: &mut VoxelWorld) {
 
 /// Previsualización central: estatua de piedra y tres puentes que alcanzan el
 /// centro de cada isla. Se sustituirá por materiales texturizados más adelante.
-fn build_central_statue_and_bridges(world: &mut VoxelWorld) {
-    let base_dark = matte(Color::new(57, 65, 80));
-    let pedestal = matte(Color::new(104, 114, 130));
-    let shadow = matte(Color::new(45, 51, 64));
-    let accent = matte(Color::new(213, 178, 67));
-    let bridge = matte(Color::new(124, 113, 103));
-    let rail = matte(Color::new(72, 77, 89));
+fn build_central_statue_and_bridges(world: &mut VoxelWorld, materials: &BlockMaterials) {
+    let base_dark = materials.black_terracotta;
+    let pedestal = materials.stone;
+    let shadow = materials.black_wool;
+    let accent = materials.gold;
+    let bridge = materials.mossy_cobblestone;
+    let rail = materials.black_terracotta;
 
     // Pedestal macizo, ancho y escalonado: alcanza siete niveles sobre el vacío.
     fill_disc(world, -2, 6, base_dark);
@@ -323,10 +325,6 @@ fn fill_box(
             }
         }
     }
-}
-
-fn matte(color: Color) -> Material {
-    Material::new(color, 0.9, 10.0, 0.0, 0.0, 1.0)
 }
 
 fn sector(x: i32, z: i32) -> usize {

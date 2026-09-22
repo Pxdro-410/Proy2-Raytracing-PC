@@ -1,4 +1,4 @@
-use crate::ray_intersect::{Intersect, Material, RayIntersect};
+use crate::ray_intersect::{BlockFace, Intersect, Material, RayIntersect};
 use crate::vec3::Vec3;
 
 const EPSILON: f32 = 1e-4;
@@ -34,11 +34,15 @@ impl RayIntersect for Cube {
 
         let distance = if near > EPSILON { near } else { far };
         let point = *ray_origin + *ray_direction * distance;
+        let normal = cube_normal(point, self.min, self.max);
+        let face = BlockFace::from_normal(normal);
         Some(Intersect {
             point,
-            normal: cube_normal(point, self.min, self.max),
+            normal,
             distance,
             material: self.material,
+            face,
+            uv: face.uv(point, self.min),
         })
     }
 }

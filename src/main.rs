@@ -4,8 +4,10 @@ mod cube;
 mod framebuffer;
 mod island;
 mod light;
+mod materials;
 mod ray_intersect;
 mod skybox;
+mod texture;
 mod time_of_day;
 mod vec3;
 mod world;
@@ -21,8 +23,10 @@ use crate::color::Color;
 use crate::framebuffer::Framebuffer;
 use crate::island::build_base;
 use crate::light::Light;
+use crate::materials::BlockMaterials;
 use crate::ray_intersect::{Intersect, RayIntersect};
 use crate::skybox::Skybox;
+use crate::texture::TextureLibrary;
 use crate::time_of_day::TimeOfDay;
 use crate::vec3::Vec3;
 
@@ -59,6 +63,7 @@ fn shade(
     ray_origin: &Vec3,
     light: &Light,
     objects: &[Box<dyn RayIntersect>],
+    textures: &TextureLibrary,
 ) -> Color {
     let light_direction = (light.position - intersect.point).normalize();
     let view_direction = (*ray_origin - intersect.point).normalize();
@@ -67,11 +72,17 @@ fn shade(
     } else {
         light.intensity
     };
-    let diffuse = intersect.material.diffuse
+    let surface_color = textures.sample(
+        intersect.material.texture_for(intersect.face),
+        intersect.uv.0,
+        intersect.uv.1,
+        intersect.material.diffuse,
+    );
+    let diffuse = surface_color
         * (intersect.normal.dot(light_direction).max(0.0)
             * intersect.material.albedo
             * light_intensity);
-    let ambient = intersect.material.diffuse * (intersect.material.albedo * light.ambient);
+    let ambient = surface_color * (intersect.material.albedo * light.ambient);
     let reflect_direction = reflect(&-light_direction, &intersect.normal);
     let specular = light.color
         * (view_direction
@@ -88,6 +99,7 @@ fn cast_ray(
     objects: &[Box<dyn RayIntersect>],
     light: &Light,
     skybox: &Skybox,
+    textures: &TextureLibrary,
     depth: u32,
 ) -> Color {
     if depth > MAX_DEPTH {
@@ -100,13 +112,21 @@ fn cast_ray(
     let Some(intersect) = closest else {
         return skybox.sample(ray_direction);
     };
-    let local = shade(&intersect, ray_origin, light, objects);
+    let local = shade(&intersect, ray_origin, light, objects, textures);
     if intersect.material.reflectivity <= 0.0 {
         return local;
     }
     let direction = reflect(ray_direction, &intersect.normal).normalize();
     let origin = intersect.point + intersect.normal * REFLECTION_BIAS;
-    let reflected = cast_ray(&origin, &direction, objects, light, skybox, depth + 1);
+    let reflected = cast_ray(
+        &origin,
+        &direction,
+        objects,
+        light,
+        skybox,
+        textures,
+        depth + 1,
+    );
     local * (1.0 - intersect.material.reflectivity) + reflected * intersect.material.reflectivity
 }
 
@@ -119,13 +139,14 @@ fn pixel_color(
     camera: &Camera,
     light: &Light,
     skybox: &Skybox,
+    textures: &TextureLibrary,
 ) -> u32 {
     let aspect_ratio = width as f32 / height as f32;
     let perspective_scale = (FOV / 2.0).tan();
     let screen_x = ((2.0 * x as f32) / width as f32 - 1.0) * aspect_ratio * perspective_scale;
     let screen_y = (-(2.0 * y as f32) / height as f32 + 1.0) * perspective_scale;
     let direction = camera.basis_change(&Vec3::new(screen_x, screen_y, -1.0).normalize());
-    cast_ray(&camera.eye, &direction, objects, light, skybox, 0).to_hex()
+    cast_ray(&camera.eye, &direction, objects, light, skybox, textures, 0).to_hex()
 }
 
 #[cfg(not(feature = "parallel"))]
@@ -135,6 +156,7 @@ fn render(
     camera: &Camera,
     light: &Light,
     skybox: &Skybox,
+    textures: &TextureLibrary,
 ) {
     for y in 0..framebuffer.height {
         for x in 0..framebuffer.width {
@@ -147,6 +169,7 @@ fn render(
                 camera,
                 light,
                 skybox,
+                textures,
             );
             framebuffer.buffer[y * framebuffer.width + x] = color;
         }
@@ -160,6 +183,7 @@ fn render(
     camera: &Camera,
     light: &Light,
     skybox: &Skybox,
+    textures: &TextureLibrary,
 ) {
     let width = framebuffer.width;
     let height = framebuffer.height;
@@ -169,7 +193,9 @@ fn render(
         .enumerate()
         .for_each(|(y, row)| {
             for (x, pixel) in row.iter_mut().enumerate() {
-                *pixel = pixel_color(x, y, width, height, objects, camera, light, skybox);
+                *pixel = pixel_color(
+                    x, y, width, height, objects, camera, light, skybox, textures,
+                );
             }
         });
 }
@@ -189,7 +215,9 @@ fn main() {
         WindowOptions::default(),
     )
     .unwrap();
-    let island = build_base();
+    let textures = TextureLibrary::load_default().expect("No se pudieron cargar las texturas PPM");
+    let materials = BlockMaterials::new();
+    let island = build_base(&materials);
     println!("Maqueta de isla creada: {} bloques.", island.block_count());
     let objects: Vec<Box<dyn RayIntersect>> = vec![Box::new(island)];
     let mut time = TimeOfDay::midday();
@@ -239,7 +267,14 @@ fn main() {
             camera_moved = true;
         }
         if camera_moved {
-            render(&mut framebuffer, &objects, &camera, &light, &skybox);
+            render(
+                &mut framebuffer,
+                &objects,
+                &camera,
+                &light,
+                &skybox,
+                &textures,
+            );
             camera_moved = false;
         }
         window

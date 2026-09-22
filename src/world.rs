@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::ray_intersect::{Intersect, Material, RayIntersect};
+use crate::ray_intersect::{BlockFace, Intersect, Material, RayIntersect};
 use crate::vec3::Vec3;
 
 const EPSILON: f32 = 1e-4;
@@ -87,11 +87,18 @@ impl RayIntersect for VoxelWorld {
 
         while distance <= exit + EPSILON {
             if let Some(material) = self.blocks.get(&cell) {
+                let point = *ray_origin + *ray_direction * distance;
+                let face = BlockFace::from_normal(normal);
                 return Some(Intersect {
-                    point: *ray_origin + *ray_direction * distance,
+                    point,
                     normal,
                     distance,
                     material: *material,
+                    face,
+                    uv: face.uv(
+                        point,
+                        Vec3::new(cell.0 as f32, cell.1 as f32, cell.2 as f32),
+                    ),
                 });
             }
 

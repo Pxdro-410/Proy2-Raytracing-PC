@@ -5,20 +5,31 @@ use crate::vec3::Vec3;
 /// proporciona color para los rayos que no golpean la isla.
 pub struct Skybox {
     daylight: f32,
+    sun_direction: Vec3,
 }
 
 impl Skybox {
     pub const fn daytime() -> Self {
-        Self { daylight: 1.0 }
+        Self {
+            daylight: 1.0,
+            sun_direction: Vec3::new(-0.55, 0.62, 0.56),
+        }
     }
 
     pub const fn nighttime() -> Self {
-        Self { daylight: 0.0 }
+        Self {
+            daylight: 0.0,
+            sun_direction: Vec3::new(-0.55, 0.62, 0.56),
+        }
     }
 
-    /// 0.0 es noche y 1.0 es día. TimeOfDay usará esta función más adelante.
+    
     pub fn set_daylight(&mut self, daylight: f32) {
         self.daylight = daylight.clamp(0.0, 1.0);
+    }
+
+    pub fn set_sun_direction(&mut self, direction: Vec3) {
+        self.sun_direction = direction.normalize();
     }
 
     pub fn sample(&self, direction: &Vec3) -> Color {
@@ -29,7 +40,7 @@ impl Skybox {
         let night = gradient([42, 66, 111], [7, 20, 57], atmospheric_height);
         let mut color = blend(night, day, self.daylight);
 
-        let sun_direction = Vec3::new(-0.55, 0.62, 0.56).normalize();
+        let sun_direction = self.sun_direction.normalize();
         let moon_direction = -sun_direction;
         let sun = square_disc(direction, sun_direction, 0.028);
         let moon = square_disc(direction, moon_direction, 0.022);

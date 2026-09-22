@@ -24,6 +24,14 @@ impl Color {
     pub fn to_hex(&self) -> u32 {
         ((self.r as u32) << 16) | ((self.g as u32) << 8) | (self.b as u32)
     }
+
+    pub fn modulate(self, other: Color) -> Color {
+        Color::new(
+            (self.r as u16 * other.r as u16 / 255) as u8,
+            (self.g as u16 * other.g as u16 / 255) as u8,
+            (self.b as u16 * other.b as u16 / 255) as u8,
+        )
+    }
 }
 
 impl Add for Color {

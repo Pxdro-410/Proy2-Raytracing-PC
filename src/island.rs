@@ -151,6 +151,7 @@ fn build_nether_preview(world: &mut VoxelWorld, materials: &BlockMaterials) {
     }
     fill_box(world, -20, 4, -1, -20, 4, 1, dark_brick);
     fill_box(world, -30, 1, -8, -27, 1, -5, materials.lava);
+    fill_box(world, -26, 8, 0, -24, 9, 2, materials.glowstone);
 }
 
 fn build_end_preview(world: &mut VoxelWorld, materials: &BlockMaterials) {

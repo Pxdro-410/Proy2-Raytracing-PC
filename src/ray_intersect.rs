@@ -58,9 +58,14 @@ pub struct Material {
     pub diffuse: Color,
     pub albedo: f32,
     pub specular: f32,
+    pub specular_strength: f32,
     pub reflectivity: f32,
     pub transparency: f32,
     pub refractive_index: f32,
+    pub alpha_cutoff: f32,
+    pub uses_texture_alpha: bool,
+    pub emission: Color,
+    pub emission_strength: f32,
     textures: [TextureId; 6],
 }
 
@@ -77,9 +82,14 @@ impl Material {
             diffuse,
             albedo,
             specular,
+            specular_strength: 0.0,
             reflectivity,
             transparency,
             refractive_index,
+            alpha_cutoff: 0.0,
+            uses_texture_alpha: false,
+            emission: Color::new(0, 0, 0),
+            emission_strength: 0.0,
             textures: [TextureId::Solid; 6],
         }
     }
@@ -97,11 +107,37 @@ impl Material {
             diffuse,
             albedo,
             specular,
+            specular_strength: 0.0,
             reflectivity,
             transparency,
             refractive_index,
+            alpha_cutoff: 0.0,
+            uses_texture_alpha: false,
+            emission: Color::new(0, 0, 0),
+            emission_strength: 0.0,
             textures,
         }
+    }
+
+    pub fn with_emission(mut self, emission: Color, strength: f32) -> Self {
+        self.emission = emission;
+        self.emission_strength = strength;
+        self
+    }
+
+    pub fn with_specular_strength(mut self, strength: f32) -> Self {
+        self.specular_strength = strength.clamp(0.0, 1.0);
+        self
+    }
+
+    pub fn with_alpha_cutoff(mut self, cutoff: f32) -> Self {
+        self.alpha_cutoff = cutoff.clamp(0.0, 1.0);
+        self
+    }
+
+    pub fn with_texture_alpha_transparency(mut self) -> Self {
+        self.uses_texture_alpha = true;
+        self
     }
 
     pub fn texture_for(&self, face: BlockFace) -> TextureId {

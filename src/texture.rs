@@ -42,6 +42,7 @@ struct Texture {
     width: usize,
     height: usize,
     pixels: Vec<Color>,
+    alpha: Vec<u8>,
 }
 
 impl Texture {
@@ -79,17 +80,56 @@ impl Texture {
             width,
             height,
             pixels,
+            alpha: vec![255; width * height],
         })
     }
 
     fn sample(&self, u: f32, v: f32) -> Color {
         // Cada bloque recibe una copia completa de la imagen: no hay estirado
         // entre bloques vecinos ni animacion de agua/lava.
+        self.pixels[self.pixel_index(u, v)]
+    }
+
+    fn sample_alpha(&self, u: f32, v: f32) -> f32 {
+        self.alpha[self.pixel_index(u, v)] as f32 / 255.0
+    }
+
+    fn load_alpha(&mut self, path: &Path) -> Result<(), String> {
+        let bytes = fs::read(path)
+            .map_err(|error| format!("No se pudo leer {}: {error}", path.display()))?;
+        let mut cursor = 0;
+        let signature = next_token(&bytes, &mut cursor).ok_or("PGM sin firma")?;
+        if signature != b"P5" {
+            return Err(format!("{} no es un PGM binario P5", path.display()));
+        }
+        let width = parse_dimension(next_token(&bytes, &mut cursor), path, "ancho")?;
+        let height = parse_dimension(next_token(&bytes, &mut cursor), path, "alto")?;
+        let max_value = parse_dimension(next_token(&bytes, &mut cursor), path, "rango")?;
+        if width != self.width || height != self.height || max_value != 255 {
+            return Err(format!("{} no coincide con su textura RGB", path.display()));
+        }
+        if cursor >= bytes.len() || !bytes[cursor].is_ascii_whitespace() {
+            return Err(format!(
+                "{} tiene una cabecera PGM incompleta",
+                path.display()
+            ));
+        }
+        cursor += 1;
+        let expected = width * height;
+        if bytes.len().saturating_sub(cursor) < expected {
+            return Err(format!("{} no contiene todos sus pixeles", path.display()));
+        }
+        self.alpha
+            .copy_from_slice(&bytes[cursor..cursor + expected]);
+        Ok(())
+    }
+
+    fn pixel_index(&self, u: f32, v: f32) -> usize {
         let u = u.clamp(0.0, 0.999_999);
         let v = v.clamp(0.0, 0.999_999);
         let x = (u * self.width as f32) as usize;
         let y = ((1.0 - v) * self.height as f32) as usize;
-        self.pixels[y.min(self.height - 1) * self.width + x.min(self.width - 1)]
+        y.min(self.height - 1) * self.width + x.min(self.width - 1)
     }
 }
 
@@ -131,8 +171,12 @@ impl TextureLibrary {
             (TextureId::MagentaGlass, "magenta_stained_glass"),
             (TextureId::Water, "water_still"),
         ] {
-            library.textures[id as usize] =
-                Some(Texture::from_ppm(&root.join(format!("{name}.ppm")))?);
+            let mut texture = Texture::from_ppm(&root.join(format!("{name}.ppm")))?;
+            let alpha_path = root.join(format!("{name}.pgm"));
+            if alpha_path.exists() {
+                texture.load_alpha(&alpha_path)?;
+            }
+            library.textures[id as usize] = Some(texture);
         }
         Ok(library)
     }
@@ -142,6 +186,13 @@ impl TextureLibrary {
             .as_ref()
             .map(|image| image.sample(u, v))
             .unwrap_or(fallback)
+    }
+
+    pub fn sample_alpha(&self, texture: TextureId, u: f32, v: f32) -> f32 {
+        self.textures[texture as usize]
+            .as_ref()
+            .map(|image| image.sample_alpha(u, v))
+            .unwrap_or(1.0)
     }
 }
 
@@ -188,5 +239,27 @@ mod tests {
                 .to_hex(),
             fallback.to_hex()
         );
+    }
+
+    #[test]
+    fn cherry_leaves_keep_their_png_cutout_alpha() {
+        let library = TextureLibrary::load_default().expect("las texturas PPM deben cargar");
+        let leaves = library.textures[TextureId::CherryLeaves as usize]
+            .as_ref()
+            .expect("las hojas deben existir");
+
+        assert!(leaves.alpha.iter().any(|alpha| *alpha == 0));
+        assert!(leaves.alpha.iter().any(|alpha| *alpha == 255));
+    }
+
+    #[test]
+    fn glass_keeps_its_partial_alpha_mask() {
+        let library = TextureLibrary::load_default().expect("las texturas PPM deben cargar");
+        let glass = library.textures[TextureId::Glass as usize]
+            .as_ref()
+            .expect("el vidrio debe existir");
+
+        assert!(glass.alpha.iter().any(|alpha| *alpha < 255));
+        assert!(glass.alpha.iter().any(|alpha| *alpha > 0));
     }
 }

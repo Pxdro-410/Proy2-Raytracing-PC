@@ -102,7 +102,8 @@ impl BlockMaterials {
                 0.0,
                 1.0,
                 [TextureId::CherryLeaves; 6],
-            ),
+            )
+            .with_alpha_cutoff(0.1),
             netherrack: opaque(TextureId::Netherrack),
             nether_bricks: opaque(TextureId::NetherBricks),
             glowstone: Material::textured(
@@ -113,7 +114,8 @@ impl BlockMaterials {
                 0.0,
                 1.0,
                 [TextureId::Glowstone; 6],
-            ),
+            )
+            .with_emission(Color::new(255, 202, 104), 0.8),
             lava: Material::textured(
                 Color::new(255, 255, 255),
                 1.0,
@@ -122,7 +124,9 @@ impl BlockMaterials {
                 0.0,
                 1.0,
                 [TextureId::Lava; 6],
-            ),
+            )
+            .with_emission(Color::new(255, 76, 20), 1.15)
+            .with_specular_strength(0.05),
             end_stone: opaque(TextureId::EndStone),
             black_terracotta: opaque(TextureId::BlackTerracotta),
             black_wool: opaque(TextureId::BlackWool),
@@ -141,25 +145,31 @@ impl BlockMaterials {
                     TextureId::Gold,
                     TextureId::Gold,
                 ],
-            ),
+            )
+            .with_specular_strength(0.65),
             glass: Material::textured(
                 Color::new(255, 255, 255),
-                0.55,
-                32.0,
-                0.08,
-                0.55,
+                0.35,
+                64.0,
+                0.04,
+                0.82,
                 1.45,
                 [TextureId::Glass; 6],
-            ),
+            )
+            .with_specular_strength(0.35)
+            .with_texture_alpha_transparency(),
             magenta_glass: Material::textured(
                 Color::new(255, 255, 255),
-                0.55,
-                32.0,
-                0.08,
-                0.55,
+                0.4,
+                64.0,
+                0.05,
+                0.7,
                 1.45,
                 [TextureId::MagentaGlass; 6],
-            ),
+            )
+            .with_emission(Color::new(235, 90, 210), 0.35)
+            .with_specular_strength(0.35)
+            .with_texture_alpha_transparency(),
             water: Material::textured(
                 Color::new(255, 255, 255),
                 0.7,
@@ -168,7 +178,21 @@ impl BlockMaterials {
                 0.5,
                 1.33,
                 [TextureId::Water; 6],
-            ),
+            )
+            .with_specular_strength(0.6),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn house_glass_uses_high_transparency_and_its_texture_alpha() {
+        let materials = BlockMaterials::new();
+
+        assert!(materials.glass.transparency >= 0.8);
+        assert!(materials.glass.uses_texture_alpha);
     }
 }

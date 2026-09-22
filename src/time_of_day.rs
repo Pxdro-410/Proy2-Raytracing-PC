@@ -23,8 +23,9 @@ impl TimeOfDay {
     }
 
     pub fn daylight(&self) -> f32 {
-        let height = self.sun_direction().y;
-        smoothstep(-0.08, 0.42, height)
+        // El cielo conserva un crepÃºsculo suave incluso cuando el sol acaba
+        // de ocultarse, pero la luz directa se calcula por separado.
+        smoothstep(-0.18, 0.28, self.sun_direction().y)
     }
 
     pub fn sun_direction(&self) -> Vec3 {
@@ -36,20 +37,20 @@ impl TimeOfDay {
     pub fn light(&self) -> Light {
         let daylight = self.daylight();
         let sun_direction = self.sun_direction();
-        let source_direction = if sun_direction.y >= 0.0 {
-            sun_direction
-        } else {
-            -sun_direction
-        };
-
+        let direct_sun = smoothstep(-0.04, 0.32, sun_direction.y);
+        let high_sun = smoothstep(0.12, 0.58, sun_direction.y.max(0.0));
         let color = blend(
-            Color::new(126, 151, 214),
-            Color::new(255, 246, 225),
-            daylight,
+            Color::new(255, 128, 62),
+            Color::new(255, 244, 220),
+            high_sun,
         );
-        let intensity = 0.22 + 1.28 * daylight;
-        let ambient = 0.10 + 0.24 * daylight;
-        Light::new(source_direction * 100.0, color, intensity, ambient)
+
+        // El sol alto queda deliberadamente por debajo de la exposiciÃ³n
+        // anterior. Cerca del horizonte su intensidad y el Ã¡ngulo rasante
+        // producen sombras largas y un atardecer legible.
+        let intensity = 0.78 * direct_sun;
+        let ambient = 0.025 + 0.16 * daylight;
+        Light::new(sun_direction * 100.0, color, intensity, ambient)
     }
 }
 
@@ -102,5 +103,24 @@ mod tests {
         assert!((time.daylight() - 1.0).abs() < 1e-4);
         time.advance(-0.5);
         assert!(time.daylight() < 1e-4);
+    }
+
+    #[test]
+    fn sunset_is_warmer_and_dimmer_than_midday() {
+        let midday = TimeOfDay::midday().light();
+        let mut sunset = TimeOfDay::midday();
+        sunset.advance(-0.25);
+        let sunset = sunset.light();
+
+        assert!(sunset.intensity < midday.intensity);
+        assert!(red(sunset.color) > blue(sunset.color));
+    }
+
+    fn red(color: Color) -> u8 {
+        (color.to_hex() >> 16) as u8
+    }
+
+    fn blue(color: Color) -> u8 {
+        color.to_hex() as u8
     }
 }

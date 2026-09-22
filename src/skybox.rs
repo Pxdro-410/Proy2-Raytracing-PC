@@ -40,12 +40,24 @@ impl Skybox {
         let mut color = blend(night, day, self.daylight);
 
         let sun_direction = self.sun_direction.normalize();
+        let sun_height = sun_direction.y;
+        let sun_visible = smoothstep(-0.08, 0.07, sun_height);
+        let low_sun = 1.0 - smoothstep(0.12, 0.55, sun_height.max(0.0));
+        let horizon_weight = (1.0 - atmospheric_height).powi(2);
+        let sunset_strength = sun_visible * low_sun * horizon_weight * 0.72;
+        color = blend(color, Color::new(255, 135, 76), sunset_strength);
+
         let moon_direction = -sun_direction;
         let sun = square_disc(direction, sun_direction, 0.028);
         let moon = square_disc(direction, moon_direction, 0.022);
 
-        if sun {
-            color = blend(color, Color::new(255, 247, 190), self.daylight);
+        if sun && sun_visible > 0.0 {
+            let disc_color = blend(
+                Color::new(255, 174, 88),
+                Color::new(255, 247, 190),
+                1.0 - low_sun,
+            );
+            color = blend(color, disc_color, sun_visible);
         }
         if moon {
             color = blend(color, Color::new(221, 231, 255), 1.0 - self.daylight);
@@ -97,4 +109,9 @@ fn channels(color: Color) -> [u8; 3] {
 
 fn lerp_channel(from: u8, to: u8, amount: f32) -> u8 {
     (from as f32 + (to as f32 - from as f32) * amount.clamp(0.0, 1.0)) as u8
+}
+
+fn smoothstep(edge_start: f32, edge_end: f32, value: f32) -> f32 {
+    let t = ((value - edge_start) / (edge_end - edge_start)).clamp(0.0, 1.0);
+    t * t * (3.0 - 2.0 * t)
 }

@@ -41,7 +41,7 @@ impl Camera {
 
     pub fn zoom(&mut self, amount: f32) {
         let offset = self.eye - self.center;
-        let distance = (offset.magnitude() + amount).clamp(5.0, 70.0);
+        let distance = (offset.magnitude() + amount).clamp(5.0, 110.0);
         self.eye = self.center + offset.normalize() * distance;
     }
 }

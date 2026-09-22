@@ -23,7 +23,6 @@ impl Skybox {
         }
     }
 
-    
     pub fn set_daylight(&mut self, daylight: f32) {
         self.daylight = daylight.clamp(0.0, 1.0);
     }

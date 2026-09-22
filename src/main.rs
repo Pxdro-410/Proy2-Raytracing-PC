@@ -197,8 +197,8 @@ fn main() {
     let mut light = time.light();
     update_environment(&time, &mut skybox, &mut light);
     let mut camera = Camera::new(
-        Vec3::new(28.0, 18.0, 28.0),
-        Vec3::new(0.0, -2.0, 0.0),
+        Vec3::new(48.0, 28.0, 48.0),
+        Vec3::new(0.0, -3.0, 0.0),
         Vec3::new(0.0, 1.0, 0.0),
     );
     let mut camera_moved = true;

@@ -2,10 +2,12 @@ mod camera;
 mod color;
 mod cube;
 mod framebuffer;
+mod island;
 mod light;
 mod ray_intersect;
 mod skybox;
 mod vec3;
+mod world;
 
 use minifb::{Key, Window, WindowOptions};
 use std::f32::consts::PI;
@@ -14,13 +16,14 @@ use std::time::Duration;
 use crate::camera::Camera;
 use crate::color::Color;
 use crate::framebuffer::Framebuffer;
+use crate::island::build_base;
 use crate::light::Light;
 use crate::ray_intersect::{Intersect, RayIntersect};
 use crate::skybox::Skybox;
 use crate::vec3::Vec3;
 
-const WIDTH: usize = 800;
-const HEIGHT: usize = 600;
+const WIDTH: usize = 960;
+const HEIGHT: usize = 720;
 const FOV: f32 = PI / 3.0;
 const ROTATION_SPEED: f32 = PI / 60.0;
 const SHADOW_BIAS: f32 = 1e-3;
@@ -135,22 +138,24 @@ fn main() {
         WindowOptions::default(),
     )
     .unwrap();
-    let objects: Vec<Box<dyn RayIntersect>> = Vec::new();
-    let light = Light::new(Vec3::new(-6.0, 6.0, 8.0), Color::new(255, 255, 255), 1.5);
+    let island = build_base();
+    println!("Maqueta de isla creada: {} bloques.", island.block_count());
+    let objects: Vec<Box<dyn RayIntersect>> = vec![Box::new(island)];
+    let light = Light::new(Vec3::new(-20.0, 25.0, 20.0), Color::new(255, 255, 255), 1.4);
     let skybox = Skybox::daytime();
     let mut camera = Camera::new(
-        Vec3::new(0.0, 0.4, 6.0),
-        Vec3::new(0.0, -0.7, 0.0),
+        Vec3::new(28.0, 18.0, 28.0),
+        Vec3::new(0.0, -2.0, 0.0),
         Vec3::new(0.0, 1.0, 0.0),
     );
     let mut camera_moved = true;
 
     while window.is_open() && !window.is_key_down(Key::Escape) {
         for (key, yaw, pitch) in [
-            (Key::Left, -ROTATION_SPEED, 0.0),
-            (Key::Right, ROTATION_SPEED, 0.0),
-            (Key::Up, 0.0, ROTATION_SPEED),
-            (Key::Down, 0.0, -ROTATION_SPEED),
+            (Key::Left, ROTATION_SPEED, 0.0),
+            (Key::Right, -ROTATION_SPEED, 0.0),
+            (Key::Up, 0.0, -ROTATION_SPEED),
+            (Key::Down, 0.0, ROTATION_SPEED),
         ] {
             if window.is_key_down(key) {
                 camera.orbit(yaw, pitch);

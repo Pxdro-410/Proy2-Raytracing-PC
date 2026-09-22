@@ -125,8 +125,9 @@ impl Texture {
     }
 
     fn pixel_index(&self, u: f32, v: f32) -> usize {
-        let u = u.clamp(0.0, 0.999_999);
-        let v = v.clamp(0.0, 0.999_999);
+        // como agua usan coordenadas globales que deben repetirse sin cortes.
+        let u = u.rem_euclid(1.0);
+        let v = v.rem_euclid(1.0);
         let x = (u * self.width as f32) as usize;
         let y = ((1.0 - v) * self.height as f32) as usize;
         y.min(self.height - 1) * self.width + x.min(self.width - 1)

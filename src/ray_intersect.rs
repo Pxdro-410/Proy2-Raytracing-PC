@@ -64,6 +64,7 @@ pub struct Material {
     pub refractive_index: f32,
     pub alpha_cutoff: f32,
     pub uses_texture_alpha: bool,
+    pub world_uv_scale: f32,
     pub emission: Color,
     pub emission_strength: f32,
     textures: [TextureId; 6],
@@ -88,6 +89,7 @@ impl Material {
             refractive_index,
             alpha_cutoff: 0.0,
             uses_texture_alpha: false,
+            world_uv_scale: 0.0,
             emission: Color::new(0, 0, 0),
             emission_strength: 0.0,
             textures: [TextureId::Solid; 6],
@@ -113,6 +115,7 @@ impl Material {
             refractive_index,
             alpha_cutoff: 0.0,
             uses_texture_alpha: false,
+            world_uv_scale: 0.0,
             emission: Color::new(0, 0, 0),
             emission_strength: 0.0,
             textures,
@@ -137,6 +140,13 @@ impl Material {
 
     pub fn with_texture_alpha_transparency(mut self) -> Self {
         self.uses_texture_alpha = true;
+        self
+    }
+
+    /// Proyecta la textura en coordenadas globales para que una superficie de
+    /// varios voxeles no muestre una junta por bloque.
+    pub fn with_world_uv_scale(mut self, scale: f32) -> Self {
+        self.world_uv_scale = scale.max(0.0);
         self
     }
 

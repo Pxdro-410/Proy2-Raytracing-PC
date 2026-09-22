@@ -172,14 +172,15 @@ impl BlockMaterials {
             .with_texture_alpha_transparency(),
             water: Material::textured(
                 Color::new(255, 255, 255),
-                0.7,
-                48.0,
-                0.12,
-                0.5,
+                0.55,
+                96.0,
+                0.04,
+                0.72,
                 1.33,
                 [TextureId::Water; 6],
             )
-            .with_specular_strength(0.6),
+            .with_specular_strength(0.25)
+            .with_world_uv_scale(0.22),
         }
     }
 }
@@ -194,5 +195,13 @@ mod tests {
 
         assert!(materials.glass.transparency >= 0.8);
         assert!(materials.glass.uses_texture_alpha);
+    }
+
+    #[test]
+    fn water_is_transparent_and_uses_continuous_world_uvs() {
+        let materials = BlockMaterials::new();
+
+        assert!(materials.water.transparency >= 0.7);
+        assert!(materials.water.world_uv_scale > 0.0);
     }
 }

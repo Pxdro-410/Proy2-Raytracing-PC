@@ -1,6 +1,19 @@
 use crate::color::Color;
 use crate::vec3::Vec3;
 
+const STARS: &[(f32, f32, f32, f32)] = &[
+    (-0.67, 0.72, -0.18, 0.004),
+    (-0.42, 0.88, 0.31, 0.003),
+    (-0.12, 0.63, -0.76, 0.005),
+    (0.18, 0.91, -0.24, 0.003),
+    (0.39, 0.68, 0.58, 0.004),
+    (0.61, 0.78, -0.12, 0.003),
+    (0.74, 0.55, 0.39, 0.005),
+    (-0.81, 0.49, 0.31, 0.003),
+    (0.04, 0.82, 0.53, 0.003),
+    (-0.32, 0.57, 0.68, 0.004),
+];
+
 /// Fondo atmosférico continuo, sin geometría ni caras visibles.
 /// proporciona color para los rayos que no golpean la isla.
 pub struct Skybox {
@@ -62,9 +75,19 @@ impl Skybox {
         if moon {
             color = blend(color, Color::new(221, 231, 255), 1.0 - self.daylight);
         }
+        let star_visibility = (1.0 - self.daylight).powi(2);
+        if star_visibility > 0.01 && is_star(direction) {
+            color = blend(color, Color::new(232, 239, 255), star_visibility);
+        }
 
         color
     }
+}
+
+fn is_star(direction: Vec3) -> bool {
+    STARS
+        .iter()
+        .any(|&(x, y, z, size)| square_disc(direction, Vec3::new(x, y, z).normalize(), size))
 }
 
 fn square_disc(direction: Vec3, center: Vec3, half_size: f32) -> bool {

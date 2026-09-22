@@ -50,7 +50,19 @@ impl TimeOfDay {
         // producen sombras largas y un atardecer legible.
         let intensity = 0.78 * direct_sun;
         let ambient = 0.025 + 0.16 * daylight;
-        Light::new(sun_direction * 100.0, color, intensity, ambient)
+        Light::directional(sun_direction * 100.0, color, intensity, ambient)
+    }
+
+    pub fn moon_light(&self) -> Light {
+        let sun_height = self.sun_direction().y;
+        let night = 1.0 - smoothstep(-0.06, 0.22, sun_height);
+        let moon_direction = -self.sun_direction();
+        Light::directional(
+            moon_direction * 100.0,
+            Color::new(156, 186, 255),
+            0.22 * night,
+            0.0,
+        )
     }
 }
 
@@ -114,6 +126,17 @@ mod tests {
 
         assert!(sunset.intensity < midday.intensity);
         assert!(red(sunset.color) > blue(sunset.color));
+    }
+
+    #[test]
+    fn moon_is_present_at_midnight_and_absent_at_midday() {
+        let midday = TimeOfDay::midday().moon_light();
+        let mut midnight = TimeOfDay::midday();
+        midnight.advance(0.5);
+        let midnight = midnight.moon_light();
+
+        assert!(midnight.intensity > 0.2);
+        assert!(midday.intensity < 1e-4);
     }
 
     fn red(color: Color) -> u8 {

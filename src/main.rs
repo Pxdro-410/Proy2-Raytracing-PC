@@ -16,7 +16,7 @@ use minifb::{Key, KeyRepeat, Window, WindowOptions};
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
 use std::f32::consts::PI;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use crate::camera::Camera;
 use crate::color::Color;
@@ -38,7 +38,7 @@ const SHADOW_BIAS: f32 = 1e-3;
 const REFLECTION_BIAS: f32 = 1e-3;
 const REFRACTION_EXIT_BIAS: f32 = 1.01;
 const MAX_DEPTH: u32 = 3;
-const TIME_STEP: f32 = 0.025;
+const TIME_SPEED: f32 = 0.055;
 
 pub fn reflect(incident: &Vec3, normal: &Vec3) -> Vec3 {
     *incident - *normal * (2.0 * incident.dot(*normal))
@@ -166,8 +166,15 @@ fn shade(
     let local_lighting = effect_lights
         .iter()
         .fold(Color::new(0, 0, 0), |sum, local_light| {
+            if local_light.intensity <= 0.0 {
+                return sum;
+            }
             let distance = (local_light.position - intersect.point).magnitude();
-            let attenuation = 1.0 / (1.0 + 0.12 * distance + 0.04 * distance * distance);
+            let attenuation = if local_light.uses_distance_attenuation {
+                1.0 / (1.0 + 0.12 * distance + 0.04 * distance * distance)
+            } else {
+                1.0
+            };
             sum + direct_light(
                 intersect,
                 ray_origin,
@@ -381,10 +388,16 @@ fn render(
         });
 }
 
-fn update_environment(time: &TimeOfDay, skybox: &mut Skybox, light: &mut Light) {
+fn update_environment(
+    time: &TimeOfDay,
+    skybox: &mut Skybox,
+    light: &mut Light,
+    effect_lights: &mut [Light; 4],
+) {
     skybox.set_daylight(time.daylight());
     skybox.set_sun_direction(time.sun_direction());
     *light = time.light();
+    effect_lights[3] = time.moon_light();
 }
 
 fn main() {
@@ -404,35 +417,24 @@ fn main() {
     let mut time = TimeOfDay::midday();
     let mut skybox = Skybox::daytime();
     let mut light = time.light();
-    let effect_lights = [
-        Light::new(
-            Vec3::new(-28.5, 3.0, -6.5),
-            Color::new(255, 74, 20),
-            7.0,
-            0.0,
-        ),
-        Light::new(
-            Vec3::new(-25.0, 10.0, 1.0),
-            Color::new(255, 204, 110),
-            5.0,
-            0.0,
-        ),
-        Light::new(
-            Vec3::new(16.5, 4.5, -23.0),
-            Color::new(235, 90, 210),
-            3.5,
-            0.0,
-        ),
+    let mut effect_lights = [
+        Light::point(Vec3::new(-28.5, 3.0, -6.5), Color::new(255, 74, 20), 7.0),
+        Light::point(Vec3::new(-25.0, 10.0, 1.0), Color::new(255, 204, 110), 5.0),
+        Light::point(Vec3::new(16.5, 4.5, -23.0), Color::new(235, 90, 210), 3.5),
+        time.moon_light(),
     ];
-    update_environment(&time, &mut skybox, &mut light);
+    update_environment(&time, &mut skybox, &mut light, &mut effect_lights);
     let mut camera = Camera::new(
         Vec3::new(48.0, 28.0, 48.0),
         Vec3::new(0.0, -3.0, 0.0),
         Vec3::new(0.0, 1.0, 0.0),
     );
     let mut camera_moved = true;
+    let mut last_frame = Instant::now();
 
     while window.is_open() && !window.is_key_down(Key::Escape) {
+        let elapsed = last_frame.elapsed().as_secs_f32().min(0.1);
+        last_frame = Instant::now();
         for (key, yaw, pitch) in [
             (Key::Left, ROTATION_SPEED, 0.0),
             (Key::Right, -ROTATION_SPEED, 0.0),
@@ -452,19 +454,21 @@ fn main() {
             camera.zoom(0.2);
             camera_moved = true;
         }
-        if window.is_key_pressed(Key::Q, KeyRepeat::Yes) {
-            time.advance(-TIME_STEP);
-            update_environment(&time, &mut skybox, &mut light);
-            camera_moved = true;
-        }
-        if window.is_key_pressed(Key::E, KeyRepeat::Yes) {
-            time.advance(TIME_STEP);
-            update_environment(&time, &mut skybox, &mut light);
+        let time_delta = if window.is_key_down(Key::Q) {
+            -TIME_SPEED * elapsed
+        } else if window.is_key_down(Key::E) {
+            TIME_SPEED * elapsed
+        } else {
+            0.0
+        };
+        if time_delta != 0.0 {
+            time.advance(time_delta);
+            update_environment(&time, &mut skybox, &mut light, &mut effect_lights);
             camera_moved = true;
         }
         if window.is_key_pressed(Key::R, KeyRepeat::No) {
             time.reset_midday();
-            update_environment(&time, &mut skybox, &mut light);
+            update_environment(&time, &mut skybox, &mut light, &mut effect_lights);
             camera_moved = true;
         }
         if camera_moved {

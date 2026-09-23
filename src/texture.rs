@@ -33,9 +33,12 @@ pub enum TextureId {
     Glass,
     MagentaGlass,
     Water,
+    Crosshair,
+    ItemBar,
+    ItemSelected,
 }
 
-const TEXTURE_COUNT: usize = TextureId::Water as usize + 1;
+const TEXTURE_COUNT: usize = TextureId::ItemSelected as usize + 1;
 
 #[derive(Clone)]
 struct Texture {
@@ -171,6 +174,9 @@ impl TextureLibrary {
             (TextureId::Glass, "glass"),
             (TextureId::MagentaGlass, "magenta_stained_glass"),
             (TextureId::Water, "water_still"),
+            (TextureId::Crosshair, "crosshair"),
+            (TextureId::ItemBar, "item_bar"),
+            (TextureId::ItemSelected, "item_selected"),
         ] {
             let mut texture = Texture::from_ppm(&root.join(format!("{name}.ppm")))?;
             let alpha_path = root.join(format!("{name}.pgm"));

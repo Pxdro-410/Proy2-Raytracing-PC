@@ -49,6 +49,14 @@ impl VoxelWorld {
         });
     }
 
+    pub fn remove_block(&mut self, x: i32, y: i32, z: i32) -> Option<Material> {
+        self.blocks.remove(&(x, y, z))
+    }
+
+    pub fn block_at(&self, x: i32, y: i32, z: i32) -> Option<Material> {
+        self.blocks.get(&(x, y, z)).copied()
+    }
+
     pub fn block_count(&self) -> usize {
         self.blocks.len()
     }
@@ -230,5 +238,16 @@ mod tests {
 
         assert!((hit.distance - 2.0).abs() < EPSILON);
         assert_eq!(hit.normal, Vec3::new(-1.0, 0.0, 0.0));
+    }
+
+    #[test]
+    fn placed_voxel_can_be_read_and_removed() {
+        let material = Material::new(Color::new(255, 255, 255), 1.0, 1.0, 0.0, 0.0, 1.0);
+        let mut world = VoxelWorld::new();
+        world.place_block(3, 4, 5, material);
+
+        assert!(world.block_at(3, 4, 5).is_some());
+        assert!(world.remove_block(3, 4, 5).is_some());
+        assert!(world.block_at(3, 4, 5).is_none());
     }
 }

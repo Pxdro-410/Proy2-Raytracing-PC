@@ -2,6 +2,7 @@ mod camera;
 mod color;
 mod cube;
 mod framebuffer;
+mod hud;
 mod island;
 mod light;
 mod materials;
@@ -12,7 +13,7 @@ mod time_of_day;
 mod vec3;
 mod world;
 
-use minifb::{Key, KeyRepeat, Window, WindowOptions};
+use minifb::{Key, KeyRepeat, MouseButton, Window, WindowOptions};
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
 use std::f32::consts::PI;
@@ -21,6 +22,7 @@ use std::time::{Duration, Instant};
 use crate::camera::Camera;
 use crate::color::Color;
 use crate::framebuffer::Framebuffer;
+use crate::hud::{Hotbar, HotbarAction};
 use crate::island::build_base;
 use crate::light::Light;
 use crate::materials::BlockMaterials;
@@ -29,6 +31,7 @@ use crate::skybox::Skybox;
 use crate::texture::TextureLibrary;
 use crate::time_of_day::TimeOfDay;
 use crate::vec3::Vec3;
+use crate::world::VoxelWorld;
 
 const WIDTH: usize = 960;
 const HEIGHT: usize = 720;
@@ -40,6 +43,13 @@ const REFRACTION_EXIT_BIAS: f32 = 1.01;
 const MAX_DEPTH: u32 = 3;
 const TIME_SPEED: f32 = 0.055;
 const ZOOM_SPEED: f32 = 9.0;
+const FREE_MOVE_SPEED: f32 = 12.0;
+
+#[derive(Clone, Copy, Debug)]
+enum NavigationMode {
+    Orbit,
+    Free,
+}
 
 pub fn reflect(incident: &Vec3, normal: &Vec3) -> Vec3 {
     *incident - *normal * (2.0 * incident.dot(*normal))
@@ -117,7 +127,7 @@ fn cast_shadow(
     intersect: &Intersect,
     light_direction: &Vec3,
     light: &Light,
-    objects: &[Box<dyn RayIntersect>],
+    objects: &[&dyn RayIntersect],
     textures: &TextureLibrary,
 ) -> bool {
     let origin = intersect.point + intersect.normal * SHADOW_BIAS;
@@ -141,7 +151,7 @@ fn direct_light(
     surface_color: Color,
     light: &Light,
     intensity: f32,
-    objects: &[Box<dyn RayIntersect>],
+    objects: &[&dyn RayIntersect],
     textures: &TextureLibrary,
 ) -> Color {
     let light_direction = (light.position - intersect.point).normalize();
@@ -168,7 +178,7 @@ fn shade(
     ray_origin: &Vec3,
     light: &Light,
     effect_lights: &[Light],
-    objects: &[Box<dyn RayIntersect>],
+    objects: &[&dyn RayIntersect],
     textures: &TextureLibrary,
 ) -> Color {
     let (u, v) = texture_uv(intersect);
@@ -217,7 +227,7 @@ fn shade(
 fn cast_ray(
     ray_origin: &Vec3,
     ray_direction: &Vec3,
-    objects: &[Box<dyn RayIntersect>],
+    objects: &[&dyn RayIntersect],
     light: &Light,
     effect_lights: &[Light],
     skybox: &Skybox,
@@ -321,7 +331,7 @@ fn pixel_color(
     y: usize,
     width: usize,
     height: usize,
-    objects: &[Box<dyn RayIntersect>],
+    objects: &[&dyn RayIntersect],
     camera: &Camera,
     light: &Light,
     effect_lights: &[Light],
@@ -349,7 +359,7 @@ fn pixel_color(
 #[cfg(not(feature = "parallel"))]
 fn render(
     framebuffer: &mut Framebuffer,
-    objects: &[Box<dyn RayIntersect>],
+    objects: &[&dyn RayIntersect],
     camera: &Camera,
     light: &Light,
     effect_lights: &[Light],
@@ -378,7 +388,7 @@ fn render(
 #[cfg(feature = "parallel")]
 fn render(
     framebuffer: &mut Framebuffer,
-    objects: &[Box<dyn RayIntersect>],
+    objects: &[&dyn RayIntersect],
     camera: &Camera,
     light: &Light,
     effect_lights: &[Light],
@@ -421,6 +431,86 @@ fn update_environment(
     effect_lights[3] = time.moon_light();
 }
 
+fn center_ray(camera: &Camera) -> Vec3 {
+    camera.basis_change(&Vec3::new(0.0, 0.0, -1.0)).normalize()
+}
+
+fn targeted_intersection(
+    camera: &Camera,
+    world: &VoxelWorld,
+    textures: &TextureLibrary,
+) -> Option<Intersect> {
+    let direction = center_ray(camera);
+    let mut origin = camera.eye;
+    for _ in 0..32 {
+        let hit = world.ray_intersect(&origin, &direction)?;
+        if texture_alpha(textures, &hit) < hit.material.alpha_cutoff {
+            origin = advance_past_voxel(hit.point, direction);
+            continue;
+        }
+        return Some(hit);
+    }
+    None
+}
+
+fn hit_block_position(hit: &Intersect) -> (i32, i32, i32) {
+    let inside = hit.point - hit.normal * 1e-3;
+    (
+        inside.x.floor() as i32,
+        inside.y.floor() as i32,
+        inside.z.floor() as i32,
+    )
+}
+
+fn adjacent_block_position(hit: &Intersect) -> (i32, i32, i32) {
+    let outside = hit.point + hit.normal * 1e-3;
+    (
+        outside.x.floor() as i32,
+        outside.y.floor() as i32,
+        outside.z.floor() as i32,
+    )
+}
+
+fn apply_selected_action(
+    hotbar: &Hotbar,
+    camera: &Camera,
+    world: &mut VoxelWorld,
+    textures: &TextureLibrary,
+) -> bool {
+    let Some(hit) = targeted_intersection(camera, world, textures) else {
+        return false;
+    };
+    match hotbar.selected_action() {
+        HotbarAction::Place(material) => {
+            let (x, y, z) = adjacent_block_position(&hit);
+            world.place_block(x, y, z, material);
+            true
+        }
+        HotbarAction::Remove => {
+            let (x, y, z) = hit_block_position(&hit);
+            world.remove_block(x, y, z).is_some()
+        }
+        HotbarAction::None => false,
+    }
+}
+
+fn copy_target_block(
+    hotbar: &mut Hotbar,
+    camera: &Camera,
+    world: &VoxelWorld,
+    textures: &TextureLibrary,
+) -> bool {
+    let Some(hit) = targeted_intersection(camera, world, textures) else {
+        return false;
+    };
+    let (x, y, z) = hit_block_position(&hit);
+    let Some(material) = world.block_at(x, y, z) else {
+        return false;
+    };
+    hotbar.copy_material(material);
+    true
+}
+
 fn main() {
     let mut framebuffer = Framebuffer::new(WIDTH, HEIGHT);
     let mut window = Window::new(
@@ -432,9 +522,9 @@ fn main() {
     .unwrap();
     let textures = TextureLibrary::load_default().expect("No se pudieron cargar las texturas PPM");
     let materials = BlockMaterials::new();
-    let island = build_base(&materials);
+    let mut island = build_base(&materials);
     println!("Maqueta de isla creada: {} bloques.", island.block_count());
-    let objects: Vec<Box<dyn RayIntersect>> = vec![Box::new(island)];
+    let mut hotbar = Hotbar::new(&materials);
     let mut time = TimeOfDay::midday();
     let mut skybox = Skybox::daytime();
     let mut light = time.light();
@@ -451,27 +541,73 @@ fn main() {
         Vec3::new(0.0, 1.0, 0.0),
     );
     let mut camera_moved = true;
+    let mut navigation_mode = NavigationMode::Orbit;
     let mut last_frame = Instant::now();
+    let mut left_mouse_was_down = false;
+    let mut right_mouse_was_down = false;
 
     while window.is_open() && !window.is_key_down(Key::Escape) {
         let elapsed = last_frame.elapsed().as_secs_f32().min(0.1);
         last_frame = Instant::now();
         for (key, yaw, pitch) in [
-            (Key::Left, ROTATION_SPEED, 0.0),
-            (Key::Right, -ROTATION_SPEED, 0.0),
-            (Key::Up, 0.0, -ROTATION_SPEED),
-            (Key::Down, 0.0, ROTATION_SPEED),
+            (Key::Left, -ROTATION_SPEED, 0.0),
+            (Key::Right, ROTATION_SPEED, 0.0),
+            (Key::Up, 0.0, ROTATION_SPEED),
+            (Key::Down, 0.0, -ROTATION_SPEED),
         ] {
             if window.is_key_down(key) {
-                camera.orbit(yaw, pitch);
+                camera.turn_view(yaw, pitch);
                 camera_moved = true;
             }
         }
-        if window.is_key_down(Key::W) {
+        match navigation_mode {
+            NavigationMode::Orbit => {
+                for (key, yaw, pitch) in [
+                    (Key::A, ROTATION_SPEED, 0.0),
+                    (Key::D, -ROTATION_SPEED, 0.0),
+                    (Key::W, 0.0, -ROTATION_SPEED),
+                    (Key::S, 0.0, ROTATION_SPEED),
+                ] {
+                    if window.is_key_down(key) {
+                        camera.orbit(yaw, pitch);
+                        camera_moved = true;
+                    }
+                }
+            }
+            NavigationMode::Free => {
+                let forward = if window.is_key_down(Key::W) {
+                    FREE_MOVE_SPEED * elapsed
+                } else if window.is_key_down(Key::S) {
+                    -FREE_MOVE_SPEED * elapsed
+                } else {
+                    0.0
+                };
+                let right = if window.is_key_down(Key::D) {
+                    FREE_MOVE_SPEED * elapsed
+                } else if window.is_key_down(Key::A) {
+                    -FREE_MOVE_SPEED * elapsed
+                } else {
+                    0.0
+                };
+                if forward != 0.0 || right != 0.0 {
+                    camera.move_local(forward, right);
+                    camera_moved = true;
+                }
+            }
+        }
+        if window.is_key_pressed(Key::F, KeyRepeat::No) {
+            navigation_mode = match navigation_mode {
+                NavigationMode::Orbit => NavigationMode::Free,
+                NavigationMode::Free => NavigationMode::Orbit,
+            };
+            println!("Modo de navegacion: {:?}", navigation_mode);
+            camera_moved = true;
+        }
+        if window.is_key_down(Key::Equal) || window.is_key_down(Key::NumPadPlus) {
             camera.zoom(-ZOOM_SPEED * elapsed);
             camera_moved = true;
         }
-        if window.is_key_down(Key::S) {
+        if window.is_key_down(Key::Minus) || window.is_key_down(Key::NumPadMinus) {
             camera.zoom(ZOOM_SPEED * elapsed);
             camera_moved = true;
         }
@@ -492,7 +628,33 @@ fn main() {
             update_environment(&time, &mut skybox, &mut light, &mut effect_lights);
             camera_moved = true;
         }
+        for (slot, key) in [
+            (0, Key::Key1),
+            (1, Key::Key2),
+            (2, Key::Key3),
+            (3, Key::Key4),
+            (4, Key::Key5),
+            (5, Key::Key6),
+        ] {
+            if window.is_key_pressed(key, KeyRepeat::No) {
+                camera_moved |= hotbar.select(slot);
+            }
+        }
+
+        let left_mouse_down = window.get_mouse_down(MouseButton::Left);
+        if left_mouse_down && !left_mouse_was_down {
+            camera_moved |= apply_selected_action(&hotbar, &camera, &mut island, &textures);
+        }
+        left_mouse_was_down = left_mouse_down;
+
+        let right_mouse_down = window.get_mouse_down(MouseButton::Right);
+        if right_mouse_down && !right_mouse_was_down {
+            camera_moved |= copy_target_block(&mut hotbar, &camera, &island, &textures);
+        }
+        right_mouse_was_down = right_mouse_down;
+
         if camera_moved {
+            let objects: [&dyn RayIntersect; 1] = [&island];
             render(
                 &mut framebuffer,
                 &objects,
@@ -502,6 +664,7 @@ fn main() {
                 &skybox,
                 &textures,
             );
+            hud::draw(&mut framebuffer, &hotbar, &textures);
             camera_moved = false;
         }
         window

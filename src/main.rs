@@ -529,9 +529,9 @@ fn main() {
     let mut skybox = Skybox::daytime();
     let mut light = time.light();
     let mut effect_lights = [
-        Light::point(Vec3::new(-28.5, 3.0, -6.5), Color::new(255, 74, 20), 7.0),
-        Light::point(Vec3::new(-25.0, 10.0, 1.0), Color::new(255, 204, 110), 5.0),
-        Light::point(Vec3::new(16.5, 4.5, -23.0), Color::new(235, 90, 210), 3.5),
+        Light::point(Vec3::new(-29.0, 3.0, -6.0), Color::new(255, 74, 20), 7.0),
+        Light::point(Vec3::new(-25.5, 3.5, 0.5), Color::new(215, 80, 240), 5.5),
+        Light::point(Vec3::new(22.0, 16.5, -25.0), Color::new(235, 90, 210), 4.5),
         time.moon_light(),
     ];
     update_environment(&time, &mut skybox, &mut light, &mut effect_lights);

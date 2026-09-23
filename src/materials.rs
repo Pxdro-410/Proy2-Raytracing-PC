@@ -20,6 +20,7 @@ pub struct BlockMaterials {
     pub lava: Material,
     pub end_stone: Material,
     pub black_terracotta: Material,
+    pub obsidian: Material,
     pub black_wool: Material,
     pub gold: Material,
     pub glass: Material,
@@ -129,6 +130,7 @@ impl BlockMaterials {
             .with_specular_strength(0.05),
             end_stone: opaque(TextureId::EndStone),
             black_terracotta: opaque(TextureId::BlackTerracotta),
+            obsidian: opaque(TextureId::Obsidian),
             black_wool: opaque(TextureId::BlackWool),
             gold: Material::textured(
                 Color::new(255, 255, 255),

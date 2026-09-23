@@ -125,8 +125,8 @@ fn relief_height(x: i32, z: i32, sector: usize) -> i32 {
 /// Zonas planas para las construcciones existentes y los tres accesos. El
 /// resto de cada sector conserva el relieve natural.
 fn is_flattened_area(x: i32, z: i32) -> bool {
-    // Overworld: casa pequeña en el otro lado del rio
-    if (14..=20).contains(&x) && (24..=30).contains(&z) {
+    // Overworld: casa en la explanada amplia, al mismo lado del rio.
+    if (3..=9).contains(&x) && (23..=29).contains(&z) {
         return true;
     }
     if is_river_corridor(x, z) {
@@ -134,6 +134,11 @@ fn is_flattened_area(x: i32, z: i32) -> bool {
     }
     // Nether: fortaleza, portal, lagos de lava y glowstone.
     if (-33..=-18).contains(&x) && (-10..=10).contains(&z) {
+        return true;
+    }
+    // El portal queda fuera del lago, sobre una pequena plataforma plana en
+    // su lado izquierdo para que el marco nunca quede enterrado por el relieve.
+    if (-36..=-34).contains(&x) && (-3..=4).contains(&z) {
         return true;
     }
     // End: pilares de obsidiana, fuente y santuario.
@@ -262,17 +267,18 @@ fn build_overworld_preview(world: &mut VoxelWorld, materials: &BlockMaterials) {
         }
     }
 
-    // Casa Skyblock compacta (5x5) reubicada del otro lado del rio (x = 15..=19, z = 25..=29)
-    fill_box(world, 15, 1, 25, 19, 1, 29, foundation);
+    // Casa Skyblock compacta (5x5) en la explanada libre del mismo lado del
+    // rio. Queda separada de las copas de cerezo, de la cascada y del cauce.
+    fill_box(world, 4, 1, 24, 8, 1, 28, foundation);
     for y in 2..=4 {
-        for x in 15..=19 {
-            for z in 25..=29 {
-                let is_edge = x == 15 || x == 19 || z == 25 || z == 29;
+        for x in 4..=8 {
+            for z in 24..=28 {
+                let is_edge = x == 4 || x == 8 || z == 24 || z == 28;
                 if !is_edge {
                     continue;
                 }
                 // Puerta hacia el camino sur
-                if z == 25 && x == 17 && y <= 3 {
+                if z == 24 && x == 6 && y <= 3 {
                     continue;
                 }
                 world.place_block(x, y, z, wall);
@@ -280,12 +286,12 @@ fn build_overworld_preview(world: &mut VoxelWorld, materials: &BlockMaterials) {
         }
     }
     // Ventanas de vidrio en la casita
-    world.place_block(15, 3, 27, glass);
-    world.place_block(19, 3, 27, glass);
-    world.place_block(17, 3, 29, glass);
+    world.place_block(4, 3, 26, glass);
+    world.place_block(8, 3, 26, glass);
+    world.place_block(6, 3, 28, glass);
     // Techo escalonado
-    fill_box(world, 14, 5, 24, 20, 5, 30, roof);
-    fill_box(world, 15, 6, 25, 19, 6, 29, roof);
+    fill_box(world, 3, 5, 23, 9, 5, 29, roof);
+    fill_box(world, 4, 6, 24, 8, 6, 28, roof);
 
     // Rio limpio, continuo y hundido con su cascada al acantilado
     build_overworld_sunken_river(world, materials);
@@ -498,8 +504,11 @@ fn build_leaf_cloud(
 /// vidrio magenta translúcido/emisivo y lagunas de lava fluida.
 fn build_nether_preview(world: &mut VoxelWorld, materials: &BlockMaterials) {
     let brick = materials.nether_bricks;
-    let obsidian = materials.black_terracotta;
+    let obsidian = materials.obsidian;
     let portal_glass = materials.magenta_glass;
+
+    build_nether_lava_lake(world, materials);
+    scatter_nether_floor_lava(world, materials);
 
     // Pasarela elevada de la fortaleza (x = -22, z de -9 a 9 a y = 3)
     for z in -9..=9 {
@@ -519,45 +528,92 @@ fn build_nether_preview(world: &mut VoxelWorld, materials: &BlockMaterials) {
         fill_box(world, -23, -2, pz - 1, -21, 2, pz + 1, brick);
     }
 
-    // Portal del Nether clasico (4 de ancho, 5 de alto) en x = -26, z = 0
-    // Marco exterior de obsidiana
+    // Portal del Nether clasico (4 de ancho, 5 de alto), fuera del lago y a
+    // su izquierda. La plataforma de netherrack lo separa del borde de lava.
+    fill_box(world, -36, 1, -3, -34, 1, 4, materials.netherrack);
     for z in -1..=2 {
-        world.place_block(-26, 1, z, obsidian);
-        world.place_block(-26, 5, z, obsidian);
+        world.place_block(-35, 1, z, obsidian);
+        world.place_block(-35, 5, z, obsidian);
     }
     for y in 2..=4 {
-        world.place_block(-26, y, -1, obsidian);
-        world.place_block(-26, y, 2, obsidian);
+        world.place_block(-35, y, -1, obsidian);
+        world.place_block(-35, y, 2, obsidian);
     }
     // Interior del portal con vidrio magenta luminoso y refractante
     for y in 2..=4 {
         for z in 0..=1 {
-            world.place_block(-26, y, z, portal_glass);
+            world.place_block(-35, y, z, portal_glass);
         }
     }
-    // Gradas de acceso al portal desde la fortaleza
+    // Pasarela de acceso que sube desde el portal hasta la fortaleza y cruza
+    // el borde del lago sin alterar su superficie.
     for z in 0..=1 {
-        world.place_block(-25, 1, z, brick);
-        world.place_block(-24, 2, z, brick);
+        world.place_block(-34, 1, z, brick);
+        for x in -33..=-25 {
+            world.place_block(x, 2, z, brick);
+        }
+        world.place_block(-24, 3, z, brick);
     }
 
-    // Gran lago y fosa de lava ardiente
-    fill_box(world, -32, 0, -8, -26, 0, -3, materials.netherrack);
-    fill_box(world, -31, 1, -7, -27, 1, -4, materials.lava);
+}
 
-    // Cascada de lava derramandose al vacio en el borde exterior
-    for lx in -35..=-33 {
-        for lz in -7..=-5 {
-            for y in (-5)..=1 {
-                world.place_block(lx, y, lz, materials.lava);
-            }
+/// Cubre toda la explanada plana del Nether con un lago de lava. Las
+/// construcciones se añaden despues y sobresalen como islas sobre el liquido.
+fn build_nether_lava_lake(world: &mut VoxelWorld, materials: &BlockMaterials) {
+    for x in -33..=-18 {
+        for z in -10..=10 {
+            world.place_block(x, 1, z, materials.lava);
         }
     }
 
-    // Estalactita de glowstone colgada de una estructura
-    fill_box(world, -28, 4, -5, -28, 6, -5, brick);
-    fill_box(world, -28, 7, -5, -27, 7, -5, brick);
-    fill_box(world, -27, 6, -5, -27, 5, -5, materials.glowstone);
+    // Seis vertientes de un bloque en el borde exterior del lago. Reemplazan
+    // parte de la carcasa inferior y dejan la lava caer hacia el vacio.
+    for (lava_x, lava_z) in [(-33, -9), (-33, -5), (-33, 5), (-33, 9), (-28, -10), (-20, -10)] {
+        for y in -6..=0 {
+            world.place_block(lava_x, y, lava_z, materials.lava);
+        }
+    }
+}
+
+/// Agrega charcos en huecos de un bloque del terreno irregular del Nether. El
+/// patron es determinista: siempre luce organico, pero la escena se conserva
+/// identica entre ejecuciones y no necesita una dependencia de aleatoriedad.
+fn scatter_nether_floor_lava(world: &mut VoxelWorld, materials: &BlockMaterials) {
+    for x in -ISLAND_RADIUS..=ISLAND_RADIUS {
+        for z in -ISLAND_RADIUS..=ISLAND_RADIUS {
+            if !is_nether_floor_lava_cell(x, z) {
+                continue;
+            }
+
+            let hash = (x * 37 + z * 61 + x * z * 11).rem_euclid(29);
+            if !matches!(hash, 0 | 7) {
+                continue;
+            }
+
+            let surface_y = relief_height(x, z, 1);
+            // Retira el bloque superior y baja la lava una unidad. Asi los
+            // charcos quedan encajados en el suelo, en vez de parecer cubos
+            // luminosos colocados sobre el netherrack.
+            world.remove_block(x, surface_y, z);
+            world.place_block(x, surface_y - 1, z, materials.lava);
+        }
+    }
+}
+
+/// Las zonas protegidas no reciben salpicaduras: ni el lago principal, ni el
+/// portal, ni su pasarela, ni el corredor de cualquiera de los tres puentes.
+fn is_nether_floor_lava_cell(x: i32, z: i32) -> bool {
+    let inside_island = x * x + z * z <= ISLAND_RADIUS * ISLAND_RADIUS;
+    let in_lake = (-33..=-18).contains(&x) && (-10..=10).contains(&z);
+    let portal_or_access = (-36..=-24).contains(&x) && (-3..=4).contains(&z);
+
+    inside_island
+        && sector(x, z) == 1
+        && !is_gap(x, z)
+        && !is_statue_clearance(x, z)
+        && !is_bridge_corridor(x, z)
+        && !in_lake
+        && !portal_or_access
 }
 
 /// End: 3 pilares de obsidiana de alturas asimetricas coronados con

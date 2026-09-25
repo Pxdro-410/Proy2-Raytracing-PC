@@ -23,7 +23,7 @@ impl TimeOfDay {
     }
 
     pub fn daylight(&self) -> f32 {
-        // El cielo conserva un crepÃºsculo suave incluso cuando el sol acaba
+        // El cielo conserva un crepúsculo suave incluso cuando el sol acaba
         // de ocultarse, pero la luz directa se calcula por separado.
         smoothstep(-0.18, 0.28, self.sun_direction().y)
     }
@@ -45,11 +45,13 @@ impl TimeOfDay {
             high_sun,
         );
 
-        // El sol alto queda deliberadamente por debajo de la exposiciÃ³n
-        // anterior. Cerca del horizonte su intensidad y el Ã¡ngulo rasante
+        // El sol alto queda deliberadamente por debajo de la exposición
+        // anterior. Cerca del horizonte su intensidad y el ángulo rasante
         // producen sombras largas y un atardecer legible.
         let intensity = 0.78 * direct_sun;
-        let ambient = 0.025 + 0.16 * daylight;
+        // Un relleno ambiental algo mayor conserva legibles el pasto, los
+        // arboles y la casa del Overworld sin borrar las sombras del sol.
+        let ambient = 0.025 + 0.20 * daylight;
         Light::directional(sun_direction * 100.0, color, intensity, ambient)
     }
 

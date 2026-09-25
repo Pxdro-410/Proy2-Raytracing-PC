@@ -97,7 +97,7 @@ fn star_sample(direction: Vec3) -> Option<(f32, Color)> {
             let center_v = (y as f32 + hash(x, y, 2)) / ROWS as f32;
             let delta_u = (u - center_u).abs().min(1.0 - (u - center_u).abs());
             let delta_v = (v - center_v).abs();
-            // Estrellas cuadradas, pequeñas y sin el aspecto de pÃ­xel blanco
+            // Estrellas cuadradas, pequeñas y sin el aspecto de píxel blanco
             // grande: aproximadamente uno a tres pixels en el encuadre.
             let size = 0.000_25 + hash(x, y, 3) * 0.000_45;
             if delta_u < size && delta_v < size {

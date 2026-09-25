@@ -125,8 +125,9 @@ fn relief_height(x: i32, z: i32, sector: usize) -> i32 {
 /// Zonas planas para las construcciones existentes y los tres accesos. El
 /// resto de cada sector conserva el relieve natural.
 fn is_flattened_area(x: i32, z: i32) -> bool {
-    // Overworld: casa en la explanada amplia, al mismo lado del rio.
-    if (3..=9).contains(&x) && (23..=29).contains(&z) {
+    // Overworld: dos bloques de explanada alrededor de la casa para que el
+    // relieve cercano no tape sus paredes, ventanas ni puerta.
+    if (2..=10).contains(&x) && (22..=30).contains(&z) {
         return true;
     }
     if is_river_corridor(x, z) {
@@ -902,6 +903,8 @@ mod tests {
 
     #[test]
     fn landmarks_and_bridge_accesses_stay_level() {
+        assert!(is_flattened_area(2, 22));
+        assert!(is_flattened_area(10, 30));
         assert!(is_flattened_area(18, 18));
         assert!(is_flattened_area(-25, 0));
         assert!(is_flattened_area(16, -23));

@@ -75,6 +75,14 @@ impl Camera {
         self.center = self.center + offset;
     }
 
+    /// Traslada ojo y punto observado verticalmente. Se usa para ascender o
+    /// descender en el modo de cámara libre sin cambiar hacia dónde se mira.
+    pub fn move_vertical(&mut self, amount: f32) {
+        let offset = Vec3::new(0.0, amount, 0.0);
+        self.eye = self.eye + offset;
+        self.center = self.center + offset;
+    }
+
     pub fn zoom(&mut self, amount: f32) {
         let offset = self.eye - self.center;
         let distance = (offset.magnitude() + amount).clamp(5.0, 110.0);
@@ -114,5 +122,19 @@ mod tests {
 
         assert_eq!(camera.eye, Vec3::new(1.0, 3.0, 3.0));
         assert_eq!(camera.center, Vec3::new(1.0, 3.0, -2.0));
+    }
+
+    #[test]
+    fn vertical_movement_translates_eye_and_center_together() {
+        let mut camera = Camera::new(
+            Vec3::new(2.0, 3.0, 5.0),
+            Vec3::new(2.0, 3.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+        );
+
+        camera.move_vertical(2.5);
+
+        assert_eq!(camera.eye, Vec3::new(2.0, 5.5, 5.0));
+        assert_eq!(camera.center, Vec3::new(2.0, 5.5, 0.0));
     }
 }

@@ -653,8 +653,17 @@ fn main() {
                 } else {
                     0.0
                 };
-                if forward != 0.0 || right != 0.0 {
+                let vertical = if window.is_key_down(Key::Space) {
+                    FREE_MOVE_SPEED * elapsed
+                } else if window.is_key_down(Key::LeftShift) || window.is_key_down(Key::RightShift)
+                {
+                    -FREE_MOVE_SPEED * elapsed
+                } else {
+                    0.0
+                };
+                if forward != 0.0 || right != 0.0 || vertical != 0.0 {
                     camera.move_local(forward, right);
+                    camera.move_vertical(vertical);
                     camera_moved = true;
                 }
             }

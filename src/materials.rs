@@ -153,12 +153,16 @@ impl BlockMaterials {
                 Color::new(255, 255, 255),
                 0.35,
                 64.0,
-                0.04,
-                0.82,
-                1.45,
+                0.0,
+                // Deja ver el interior con claridad, pero conserva suficiente
+                // textura y tono para que las caras de vidrio sean visibles.
+                0.86,
+                // En bloques de un voxel, un índice neutro evita que el rayo
+                // quede doblado al salir y produzca el efecto de lente.
+                1.0,
                 [TextureId::Glass; 6],
             )
-            .with_specular_strength(0.35)
+            .with_specular_strength(0.02)
             .with_texture_alpha_transparency(),
             magenta_glass: Material::textured(
                 Color::new(255, 255, 255),
@@ -175,13 +179,15 @@ impl BlockMaterials {
             water: Material::textured(
                 Color::new(255, 255, 255),
                 0.55,
-                96.0,
-                0.04,
-                0.72,
+                72.0,
+                0.05,
+                // Mantiene el fondo visible, pero deja suficiente color azul
+                // de water_still para que el río no parezca vidrio.
+                0.55,
                 1.33,
                 [TextureId::Water; 6],
             )
-            .with_specular_strength(0.25)
+            .with_specular_strength(0.18)
             .with_world_uv_scale(0.22),
         }
     }
@@ -190,12 +196,16 @@ impl BlockMaterials {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ray_intersect::BlockFace;
 
     #[test]
     fn house_glass_uses_high_transparency_and_its_texture_alpha() {
         let materials = BlockMaterials::new();
 
         assert!(materials.glass.transparency >= 0.8);
+        assert!(materials.glass.transparency <= 0.9);
+        assert_eq!(materials.glass.reflectivity, 0.0);
+        assert_eq!(materials.glass.refractive_index, 1.0);
         assert!(materials.glass.uses_texture_alpha);
     }
 
@@ -203,7 +213,11 @@ mod tests {
     fn water_is_transparent_and_uses_continuous_world_uvs() {
         let materials = BlockMaterials::new();
 
-        assert!(materials.water.transparency >= 0.7);
+        assert_eq!(
+            materials.water.texture_for(BlockFace::PositiveY),
+            TextureId::Water
+        );
+        assert!(materials.water.transparency >= 0.5);
         assert!(materials.water.world_uv_scale > 0.0);
     }
 }

@@ -16,6 +16,7 @@ mod world;
 use minifb::{Key, KeyRepeat, MouseButton, Window, WindowOptions};
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
+use std::collections::BTreeMap;
 use std::f32::consts::PI;
 use std::time::{Duration, Instant};
 
@@ -28,7 +29,7 @@ use crate::light::Light;
 use crate::materials::BlockMaterials;
 use crate::ray_intersect::{BlockFace, Intersect, Material, RayIntersect};
 use crate::skybox::Skybox;
-use crate::texture::TextureLibrary;
+use crate::texture::{TextureId, TextureLibrary};
 use crate::time_of_day::TimeOfDay;
 use crate::vec3::Vec3;
 use crate::world::VoxelWorld;
@@ -205,6 +206,9 @@ fn shade(
                 return sum;
             }
             let distance = (local_light.position - intersect.point).magnitude();
+            if local_light.uses_distance_attenuation && distance > local_light.radius {
+                return sum;
+            }
             let attenuation = if local_light.uses_distance_attenuation {
                 1.0 / (1.0 + 0.12 * distance + 0.04 * distance * distance)
             } else {
@@ -278,11 +282,17 @@ fn cast_ray(
     }
 
     let mut transmission_weight = (1.0 - reflection_weight) * transparency;
-    let refracted_direction = refract(
-        ray_direction,
-        &intersect.normal,
-        intersect.material.refractive_index,
-    );
+    let refracted_direction = if (intersect.material.refractive_index - 1.0).abs() < f32::EPSILON {
+        // Vidrio claro: el rayo atraviesa el voxel en línea recta. Evita que
+        // un bloque de grosor unitario se comporte como una lente artificial.
+        Some(*ray_direction)
+    } else {
+        refract(
+            ray_direction,
+            &intersect.normal,
+            intersect.material.refractive_index,
+        )
+    };
     if transparency > 0.0 && refracted_direction.is_none() {
         reflection_weight = 1.0;
         transmission_weight = 0.0;
@@ -419,16 +429,75 @@ fn render(
         });
 }
 
-fn update_environment(
-    time: &TimeOfDay,
-    skybox: &mut Skybox,
-    light: &mut Light,
-    effect_lights: &mut [Light; 4],
-) {
+fn update_environment(time: &TimeOfDay, skybox: &mut Skybox, light: &mut Light) {
     skybox.set_daylight(time.daylight());
     skybox.set_sun_direction(time.sun_direction());
     *light = time.light();
-    effect_lights[3] = time.moon_light();
+}
+
+/// Reune luces derivadas de los bloques actuales. La glowstone se registra
+/// bloque por bloque; la lava se agrupa por celdas de 10x6x10 para cubrir una
+/// superficie grande sin convertir cada voxel en una luz costosa.
+fn build_effect_lights(world: &VoxelWorld, time: &TimeOfDay) -> Vec<Light> {
+    let mut lights = vec![
+        // Portal y cristal del End: emisores no representados por glowstone.
+        Light::point_with_radius(
+            Vec3::new(-25.5, 3.5, 0.5),
+            Color::new(215, 80, 240),
+            5.5,
+            8.0,
+        ),
+        Light::point_with_radius(
+            Vec3::new(22.0, 16.5, -25.0),
+            Color::new(235, 90, 210),
+            4.5,
+            8.0,
+        ),
+    ];
+
+    lights.extend(
+        world
+            .block_centers_with_texture(TextureId::Glowstone)
+            .into_iter()
+            .map(|position| {
+                Light::point_with_radius(position, Color::new(255, 204, 120), 2.0, 6.5)
+            }),
+    );
+    lights.extend(build_lava_lights(world));
+    lights.push(time.moon_light());
+    lights
+}
+
+fn build_lava_lights(world: &VoxelWorld) -> Vec<Light> {
+    const CELL_WIDTH: i32 = 10;
+    const CELL_HEIGHT: i32 = 6;
+    let mut cells = BTreeMap::<(i32, i32, i32), (f32, f32, f32, u32)>::new();
+
+    for position in world.block_centers_with_texture(TextureId::Lava) {
+        let key = (
+            (position.x.floor() as i32).div_euclid(CELL_WIDTH),
+            (position.y.floor() as i32).div_euclid(CELL_HEIGHT),
+            (position.z.floor() as i32).div_euclid(CELL_WIDTH),
+        );
+        let cell = cells.entry(key).or_insert((0.0, 0.0, 0.0, 0));
+        cell.0 += position.x;
+        cell.1 += position.y;
+        cell.2 += position.z;
+        cell.3 += 1;
+    }
+
+    cells
+        .into_values()
+        .map(|(x, y, z, count)| {
+            let count = count as f32;
+            Light::point_with_radius(
+                Vec3::new(x / count, y / count, z / count),
+                Color::new(255, 88, 28),
+                4.0,
+                8.5,
+            )
+        })
+        .collect()
 }
 
 fn center_ray(camera: &Camera) -> Vec3 {
@@ -528,13 +597,8 @@ fn main() {
     let mut time = TimeOfDay::midday();
     let mut skybox = Skybox::daytime();
     let mut light = time.light();
-    let mut effect_lights = [
-        Light::point(Vec3::new(-29.0, 3.0, -6.0), Color::new(255, 74, 20), 7.0),
-        Light::point(Vec3::new(-25.5, 3.5, 0.5), Color::new(215, 80, 240), 5.5),
-        Light::point(Vec3::new(22.0, 16.5, -25.0), Color::new(235, 90, 210), 4.5),
-        time.moon_light(),
-    ];
-    update_environment(&time, &mut skybox, &mut light, &mut effect_lights);
+    update_environment(&time, &mut skybox, &mut light);
+    let mut effect_lights = build_effect_lights(&island, &time);
     let mut camera = Camera::new(
         Vec3::new(48.0, 28.0, 48.0),
         Vec3::new(0.0, -3.0, 0.0),
@@ -620,12 +684,14 @@ fn main() {
         };
         if time_delta != 0.0 {
             time.advance(time_delta);
-            update_environment(&time, &mut skybox, &mut light, &mut effect_lights);
+            update_environment(&time, &mut skybox, &mut light);
+            effect_lights = build_effect_lights(&island, &time);
             camera_moved = true;
         }
         if window.is_key_pressed(Key::R, KeyRepeat::No) {
             time.reset_midday();
-            update_environment(&time, &mut skybox, &mut light, &mut effect_lights);
+            update_environment(&time, &mut skybox, &mut light);
+            effect_lights = build_effect_lights(&island, &time);
             camera_moved = true;
         }
         for (slot, key) in [
@@ -643,7 +709,11 @@ fn main() {
 
         let left_mouse_down = window.get_mouse_down(MouseButton::Left);
         if left_mouse_down && !left_mouse_was_down {
-            camera_moved |= apply_selected_action(&hotbar, &camera, &mut island, &textures);
+            let world_changed = apply_selected_action(&hotbar, &camera, &mut island, &textures);
+            if world_changed {
+                effect_lights = build_effect_lights(&island, &time);
+                camera_moved = true;
+            }
         }
         left_mouse_was_down = left_mouse_down;
 

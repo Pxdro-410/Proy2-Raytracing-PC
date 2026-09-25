@@ -7,6 +7,7 @@ pub struct Light {
     pub intensity: f32,
     pub ambient: f32,
     pub uses_distance_attenuation: bool,
+    pub radius: f32,
 }
 
 impl Light {
@@ -17,6 +18,16 @@ impl Light {
             intensity,
             ambient: 0.0,
             uses_distance_attenuation: true,
+            radius: 12.0,
+        }
+    }
+
+    /// Luz puntual con alcance finito. Evita calcular sombras para fuentes
+    /// que no pueden aportar luz visible al punto sombreado.
+    pub fn point_with_radius(position: Vec3, color: Color, intensity: f32, radius: f32) -> Self {
+        Self {
+            radius: radius.max(0.0),
+            ..Self::point(position, color, intensity)
         }
     }
 
@@ -27,6 +38,7 @@ impl Light {
             intensity,
             ambient,
             uses_distance_attenuation: false,
+            radius: f32::INFINITY,
         }
     }
 }

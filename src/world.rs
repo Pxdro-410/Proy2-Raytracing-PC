@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use crate::ray_intersect::{BlockFace, Intersect, Material, RayIntersect};
+use crate::texture::TextureId;
 use crate::vec3::Vec3;
 
 const EPSILON: f32 = 1e-4;
@@ -59,6 +60,22 @@ impl VoxelWorld {
 
     pub fn block_count(&self) -> usize {
         self.blocks.len()
+    }
+
+    /// Centros de los bloques que usan una textura determinada en su cara
+    /// superior. Permite que las luces se deriven del mundo real, incluso si
+    /// el jugador coloca despues otra glowstone o un bloque de lava.
+    pub fn block_centers_with_texture(&self, texture: TextureId) -> Vec<Vec3> {
+        self.blocks
+            .iter()
+            .filter_map(|(&(x, y, z), material)| {
+                (material.texture_for(BlockFace::PositiveY) == texture).then_some(Vec3::new(
+                    x as f32 + 0.5,
+                    y as f32 + 0.5,
+                    z as f32 + 0.5,
+                ))
+            })
+            .collect()
     }
 }
 

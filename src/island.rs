@@ -289,6 +289,8 @@ fn build_overworld_preview(world: &mut VoxelWorld, materials: &BlockMaterials) {
     world.place_block(4, 3, 26, glass);
     world.place_block(8, 3, 26, glass);
     world.place_block(6, 3, 28, glass);
+    // Lampara interior: ilumina la casa por las ventanas sin alterar su techo.
+    world.place_block(6, 3, 26, materials.glowstone);
     // Techo escalonado
     fill_box(world, 3, 5, 23, 9, 5, 29, roof);
     fill_box(world, 4, 6, 24, 8, 6, 28, roof);
@@ -620,7 +622,7 @@ fn is_nether_floor_lava_cell(x: i32, z: i32) -> bool {
 /// cristales del End (protegidos con jaulas de vidrio), fuente central
 /// y una pequena isla flotante en el vacio.
 fn build_end_preview(world: &mut VoxelWorld, materials: &BlockMaterials) {
-    let obsidian = materials.black_terracotta;
+    let obsidian = materials.obsidian;
     let gold = materials.gold;
     let crystal = materials.magenta_glass;
     let glass = materials.glass;
@@ -742,6 +744,9 @@ fn build_monumental_tower(world: &mut VoxelWorld, materials: &BlockMaterials) {
             }
         }
     }
+    // Lampara del mirador. La glowstone queda dentro del cuerpo de la torre y
+    // proyecta luz calida hacia sus cuatro ventanas de vidrio.
+    world.place_block(0, 14, 0, materials.glowstone);
 
     // Nivel 18-25: Cuerpo superior escalonado piramidal
     fill_box(world, -3, 18, -3, 3, 18, 3, smooth);

@@ -6,6 +6,7 @@ mod hud;
 mod island;
 mod light;
 mod materials;
+mod menu;
 mod ray_intersect;
 mod skybox;
 mod texture;
@@ -13,7 +14,7 @@ mod time_of_day;
 mod vec3;
 mod world;
 
-use minifb::{Key, KeyRepeat, MouseButton, Window, WindowOptions};
+use minifb::{Key, KeyRepeat, MouseButton, MouseMode, Window, WindowOptions};
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
 use std::collections::BTreeMap;
@@ -27,6 +28,7 @@ use crate::hud::{Hotbar, HotbarAction};
 use crate::island::build_base;
 use crate::light::Light;
 use crate::materials::BlockMaterials;
+use crate::menu::{Menu, MenuAction, MenuPage};
 use crate::ray_intersect::{BlockFace, Intersect, Material, RayIntersect};
 use crate::skybox::Skybox;
 use crate::texture::{TextureId, TextureLibrary};
@@ -50,6 +52,12 @@ const FREE_MOVE_SPEED: f32 = 12.0;
 enum NavigationMode {
     Orbit,
     Free,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum AppScreen {
+    Menu(MenuPage),
+    World,
 }
 
 pub fn reflect(incident: &Vec3, normal: &Vec3) -> Vec3 {
@@ -609,10 +617,93 @@ fn main() {
     let mut last_frame = Instant::now();
     let mut left_mouse_was_down = false;
     let mut right_mouse_was_down = false;
+    let mut menu = Menu::load();
+    let mut screen = AppScreen::Menu(MenuPage::Main);
+    let mut menu_left_mouse_was_down = false;
+    // La acción se conserva mientras el usuario mantiene el clic. Así el
+    // botón puede mostrar su estado azul antes de ejecutar la acción al soltar.
+    let mut menu_pressed_action = MenuAction::None;
 
-    while window.is_open() && !window.is_key_down(Key::Escape) {
+    while window.is_open() {
         let elapsed = last_frame.elapsed().as_secs_f32().min(0.1);
         last_frame = Instant::now();
+
+        // El cierre intencional por teclado queda reservado para Ctrl+C.
+        if (window.is_key_down(Key::LeftCtrl) || window.is_key_down(Key::RightCtrl))
+            && window.is_key_pressed(Key::C, KeyRepeat::No)
+        {
+            break;
+        }
+
+        if let AppScreen::Menu(page) = screen {
+            let mouse = window
+                .get_mouse_pos(MouseMode::Clamp)
+                .map(|(x, y)| (x.max(0.0) as usize, y.max(0.0) as usize));
+            let menu_left_mouse_down = window.get_mouse_down(MouseButton::Left);
+            if menu_left_mouse_down && !menu_left_mouse_was_down {
+                menu_pressed_action = menu.click(page, mouse);
+            } else if !menu_left_mouse_down && menu_left_mouse_was_down {
+                // Una acción solo es válida si el clic también termina sobre
+                // el mismo botón; arrastrar fuera de él la cancela.
+                let action = if menu.click(page, mouse) == menu_pressed_action {
+                    menu_pressed_action
+                } else {
+                    MenuAction::None
+                };
+                menu_pressed_action = MenuAction::None;
+
+                match action {
+                    MenuAction::JoinWorld => {
+                        screen = AppScreen::World;
+                        camera_moved = true;
+                        // El clic se soltó antes de entrar a la isla: no debe
+                        // interpretarse como una colocación de bloque.
+                        left_mouse_was_down = false;
+                    }
+                    MenuAction::HowToPlay => screen = AppScreen::Menu(MenuPage::HowToPlay),
+                    MenuAction::Back => screen = AppScreen::Menu(MenuPage::Main),
+                    MenuAction::Exit => break,
+                    MenuAction::None => {}
+                }
+            }
+            menu_left_mouse_was_down = menu_left_mouse_down;
+
+            if window.is_key_pressed(Key::Escape, KeyRepeat::No) {
+                match screen {
+                    AppScreen::Menu(MenuPage::HowToPlay) => {
+                        screen = AppScreen::Menu(MenuPage::Main);
+                        menu_pressed_action = MenuAction::None;
+                    }
+                    // Escape no cierra el programa desde el menú principal.
+                    AppScreen::Menu(MenuPage::Main) => {}
+                    AppScreen::World => {}
+                }
+            }
+
+            if let AppScreen::Menu(active_page) = screen {
+                menu.draw(
+                    active_page,
+                    &mut framebuffer,
+                    &textures,
+                    mouse,
+                    menu_left_mouse_down,
+                );
+                window
+                    .update_with_buffer(&framebuffer.buffer, WIDTH, HEIGHT)
+                    .unwrap();
+                std::thread::sleep(Duration::from_millis(16));
+                continue;
+            }
+        }
+
+        if window.is_key_pressed(Key::Escape, KeyRepeat::No) {
+            screen = AppScreen::Menu(MenuPage::Main);
+            menu.reload_background();
+            menu_left_mouse_was_down = window.get_mouse_down(MouseButton::Left);
+            menu_pressed_action = MenuAction::None;
+            continue;
+        }
+        let screenshot_requested = window.is_key_pressed(Key::P, KeyRepeat::No);
         for (key, yaw, pitch) in [
             (Key::Left, -ROTATION_SPEED, 0.0),
             (Key::Right, ROTATION_SPEED, 0.0),
@@ -745,6 +836,15 @@ fn main() {
             );
             hud::draw(&mut framebuffer, &hotbar, &textures);
             camera_moved = false;
+        }
+        if screenshot_requested {
+            match menu::save_screenshot(&framebuffer) {
+                Ok(path) => {
+                    println!("Captura guardada: {}", path.display());
+                    menu.reload_background();
+                }
+                Err(error) => eprintln!("No se pudo guardar la captura: {error}"),
+            }
         }
         window
             .update_with_buffer(&framebuffer.buffer, WIDTH, HEIGHT)

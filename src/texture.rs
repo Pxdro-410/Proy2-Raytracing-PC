@@ -37,9 +37,10 @@ pub enum TextureId {
     Crosshair,
     ItemBar,
     ItemSelected,
+    MenuButton,
 }
 
-const TEXTURE_COUNT: usize = TextureId::ItemSelected as usize + 1;
+const TEXTURE_COUNT: usize = TextureId::MenuButton as usize + 1;
 
 #[derive(Clone)]
 struct Texture {
@@ -179,6 +180,7 @@ impl TextureLibrary {
             (TextureId::Crosshair, "crosshair"),
             (TextureId::ItemBar, "item_bar"),
             (TextureId::ItemSelected, "item_selected"),
+            (TextureId::MenuButton, "buttons"),
         ] {
             let mut texture = Texture::from_ppm(&root.join(format!("{name}.ppm")))?;
             let alpha_path = root.join(format!("{name}.pgm"));

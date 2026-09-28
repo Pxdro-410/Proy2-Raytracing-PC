@@ -194,7 +194,9 @@ fn is_river_corridor(x: i32, z: i32) -> bool {
 }
 
 fn is_river_channel(x: i32, z: i32) -> bool {
-    RIVER_PATH.iter().any(|&(rx, rz)| (x - rx).abs() <= 1 && (z - rz).abs() <= 1)
+    RIVER_PATH
+        .iter()
+        .any(|&(rx, rz)| (x - rx).abs() <= 1 && (z - rz).abs() <= 1)
 }
 
 /// Reserva cuatro bloques de ancho bajo los puentes para que suban desde el
@@ -259,7 +261,10 @@ fn build_overworld_preview(world: &mut VoxelWorld, materials: &BlockMaterials) {
     // Asegurar suelo base de cesped a y = 1 (salvo en el canal del rio)
     for x in 12..=36 {
         for z in 5..=36 {
-            if x * x + z * z > ISLAND_RADIUS * ISLAND_RADIUS || is_gap(x, z) || is_statue_clearance(x, z) {
+            if x * x + z * z > ISLAND_RADIUS * ISLAND_RADIUS
+                || is_gap(x, z)
+                || is_statue_clearance(x, z)
+            {
                 continue;
             }
             if !is_river_channel(x, z) && world.block_at(x, 1, z).is_none() {
@@ -557,7 +562,6 @@ fn build_nether_preview(world: &mut VoxelWorld, materials: &BlockMaterials) {
         }
         world.place_block(-24, 3, z, brick);
     }
-
 }
 
 /// Cubre toda la explanada plana del Nether con un lago de lava. Las
@@ -571,7 +575,14 @@ fn build_nether_lava_lake(world: &mut VoxelWorld, materials: &BlockMaterials) {
 
     // Seis vertientes de un bloque en el borde exterior del lago. Reemplazan
     // parte de la carcasa inferior y dejan la lava caer hacia el vacio.
-    for (lava_x, lava_z) in [(-33, -9), (-33, -5), (-33, 5), (-33, 9), (-28, -10), (-20, -10)] {
+    for (lava_x, lava_z) in [
+        (-33, -9),
+        (-33, -5),
+        (-33, 5),
+        (-33, 9),
+        (-28, -10),
+        (-20, -10),
+    ] {
         for y in -6..=0 {
             world.place_block(lava_x, y, lava_z, materials.lava);
         }

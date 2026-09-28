@@ -7,6 +7,15 @@ use crate::world::VoxelWorld;
 pub const ISLAND_RADIUS: i32 = 37;
 pub const STATUE_CLEARANCE_RADIUS: i32 = 16;
 
+// Ocupan los extremos libres del End, lejos del grupo de pilares original.
+const ADDITIONAL_END_PILLARS: &[(i32, i32, i32, i32)] = &[
+    (-10, -30, 1, 11),
+    (-1, -21, 1, 7),
+    (3, -33, 2, 16),
+    (20, -8, 1, 9),
+    (31, -7, 1, 13),
+];
+
 const LAYERS: &[(i32, i32)] = &[
     (0, ISLAND_RADIUS),
     (-1, ISLAND_RADIUS - 2),
@@ -56,6 +65,7 @@ pub fn build_base(materials: &BlockMaterials) -> VoxelWorld {
     build_overworld_preview(&mut world, materials);
     build_nether_preview(&mut world, materials);
     build_end_preview(&mut world, materials);
+    build_additional_end_pillars(&mut world, materials);
     build_central_statue_and_bridges(&mut world, materials);
 
     world
@@ -690,6 +700,41 @@ fn build_end_preview(world: &mut VoxelWorld, materials: &BlockMaterials) {
     world.place_block(32, 5, -24, gold);
 }
 
+/// Pilares repartidos por las zonas libres del End. La altura se mide desde
+/// el punto más alto bajo cada base; la cimentación atraviesa el relieve para
+/// que las columnas no floten ni dejen huecos al pie de las laderas.
+fn build_additional_end_pillars(world: &mut VoxelWorld, materials: &BlockMaterials) {
+    for &(center_x, center_z, radius, height) in ADDITIONAL_END_PILLARS {
+        let mut surface_y = 0;
+        for x in center_x - radius..=center_x + radius {
+            for z in center_z - radius..=center_z + radius {
+                let mut column_y = 0;
+                while world.block_at(x, column_y + 1, z).is_some() {
+                    column_y += 1;
+                }
+                surface_y = surface_y.max(column_y);
+            }
+        }
+
+        let top_y = surface_y + height;
+        fill_box(
+            world,
+            center_x - radius,
+            1,
+            center_z - radius,
+            center_x + radius,
+            top_y,
+            center_z + radius,
+            materials.obsidian,
+        );
+        // Remate estrecho y cristal como en los pilares existentes. La
+        // glowstone queda expuesta y el sistema de luces la detecta al inicio.
+        world.place_block(center_x, top_y + 1, center_z, materials.obsidian);
+        world.place_block(center_x, top_y + 2, center_z, materials.magenta_glass);
+        world.place_block(center_x, top_y + 3, center_z, materials.glowstone);
+    }
+}
+
 /// Torre central monumental tripode y tres puentes aéreos arqueados
 /// que conectan de forma imponente las tres dimensiones a 120°.
 fn build_central_statue_and_bridges(world: &mut VoxelWorld, materials: &BlockMaterials) {
@@ -894,6 +939,74 @@ fn is_gap(x: i32, z: i32) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ray_intersect::BlockFace;
+    use crate::texture::TextureId;
+
+    #[test]
+    fn additional_end_pillars_are_spaced_supported_and_lit() {
+        let world = build_base(&BlockMaterials::new());
+        let mut centers = vec![(22, -25), (14, -27), (26, -16)];
+        let lights = world.block_centers_with_texture(TextureId::Glowstone);
+
+        for &(cx, cz, radius, _) in ADDITIONAL_END_PILLARS {
+            for &(other_x, other_z) in &centers {
+                assert!((cx - other_x).pow(2) + (cz - other_z).pow(2) >= 100);
+            }
+            centers.push((cx, cz));
+
+            for x in cx - radius..=cx + radius {
+                for z in cz - radius..=cz + radius {
+                    assert_eq!(sector(x, z), 2);
+                    assert!(!is_gap(x, z) && !is_statue_clearance(x, z));
+                    assert!(!is_bridge_corridor(x, z));
+                    assert_eq!(
+                        world
+                            .block_at(x, 0, z)
+                            .unwrap()
+                            .texture_for(BlockFace::PositiveY),
+                        TextureId::EndStone,
+                        "La base debe descansar sobre terreno del End"
+                    );
+                    assert_eq!(
+                        world
+                            .block_at(x, 1, z)
+                            .unwrap()
+                            .texture_for(BlockFace::PositiveY),
+                        TextureId::Obsidian
+                    );
+                }
+            }
+
+            let tip = lights
+                .iter()
+                .find(|position| position.x.floor() as i32 == cx && position.z.floor() as i32 == cz)
+                .expect("Cada pilar debe aportar una luz al mundo");
+            let tip_y = tip.y.floor() as i32;
+            assert!(world.block_at(cx, tip_y, cz).unwrap().emission_strength > 0.0);
+            assert!(world.block_at(cx, tip_y + 1, cz).is_none());
+            for y in 1..tip_y {
+                assert!(
+                    world.block_at(cx, y, cz).is_some(),
+                    "El pilar debe ser continuo"
+                );
+            }
+        }
+
+        // Los remates particulares de los tres pilares originales se conservan.
+        for (x, y, z, texture) in [
+            (22, 18, -25, TextureId::Glass),
+            (14, 13, -27, TextureId::Glowstone),
+            (26, 9, -16, TextureId::MagentaGlass),
+        ] {
+            assert_eq!(
+                world
+                    .block_at(x, y, z)
+                    .unwrap()
+                    .texture_for(BlockFace::PositiveY),
+                texture
+            );
+        }
+    }
 
     #[test]
     fn each_dimension_has_a_non_flat_relief_profile() {

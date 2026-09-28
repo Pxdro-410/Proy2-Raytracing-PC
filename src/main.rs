@@ -1,3 +1,4 @@
+mod audio;
 mod camera;
 mod color;
 mod cube;
@@ -21,6 +22,7 @@ use std::collections::BTreeMap;
 use std::f32::consts::PI;
 use std::time::{Duration, Instant};
 
+use crate::audio::Audio;
 use crate::camera::Camera;
 use crate::color::Color;
 use crate::framebuffer::Framebuffer;
@@ -618,6 +620,7 @@ fn main() {
     let mut left_mouse_was_down = false;
     let mut right_mouse_was_down = false;
     let mut menu = Menu::load();
+    let audio = Audio::load();
     let mut screen = AppScreen::Menu(MenuPage::Main);
     let mut menu_left_mouse_was_down = false;
     // La acción se conserva mientras el usuario mantiene el clic. Así el
@@ -642,6 +645,9 @@ fn main() {
             let menu_left_mouse_down = window.get_mouse_down(MouseButton::Left);
             if menu_left_mouse_down && !menu_left_mouse_was_down {
                 menu_pressed_action = menu.click(page, mouse);
+                if menu_pressed_action != MenuAction::None {
+                    audio.play_button_press();
+                }
             } else if !menu_left_mouse_down && menu_left_mouse_was_down {
                 // Una acción solo es válida si el clic también termina sobre
                 // el mismo botón; arrastrar fuera de él la cancela.
@@ -651,6 +657,10 @@ fn main() {
                     MenuAction::None
                 };
                 menu_pressed_action = MenuAction::None;
+
+                if action != MenuAction::None {
+                    audio.play_button_release();
+                }
 
                 match action {
                     MenuAction::JoinWorld => {

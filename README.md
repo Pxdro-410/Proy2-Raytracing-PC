@@ -67,6 +67,27 @@ La isla está construida como una carcasa circular de bloques y se divide por tr
 
 La interfaz incluye crosshair, barra de objetos, selector de espacio y un menú de inicio con las opciones **Join World**, **How to Play** y **Exit**. La banda sonora se reproduce en bucle y los botones tienen sonido al presionarse y liberarse.
 
+## Demostración:
+<img width="1192" height="892" alt="Captura de pantalla 2026-10-01 202340" src="https://github.com/user-attachments/assets/78025107-6030-43cb-be20-06efb65e9a81" />
+<img width="1195" height="896" alt="Captura de pantalla 2026-10-01 202328" src="https://github.com/user-attachments/assets/9b9fb19f-aa5f-4016-a3f4-1c0e4d453dfe" />
+<img width="1188" height="892" alt="Captura de pantalla 2026-10-01 202357" src="https://github.com/user-attachments/assets/d7be6da0-ac55-42d8-b1c2-0550c0f8170d" />
+<img width="1188" height="892" alt="Captura de pantalla 2026-10-01 202411" src="https://github.com/user-attachments/assets/0c1f99d6-683e-4c30-87a3-cc4b8042e321" />
+<img width="1187" height="891" alt="Captura de pantalla 2026-10-01 202437" src="https://github.com/user-attachments/assets/8ac83a90-74cb-4d61-9ed2-0dbae104c62a" />
+<img width="1191" height="886" alt="Captura de pantalla 2026-10-01 202450" src="https://github.com/user-attachments/assets/a84ee615-607b-40c3-bcce-5d02015dd06d" />
+<img width="1183" height="883" alt="Captura de pantalla 2026-10-01 202520" src="https://github.com/user-attachments/assets/b29d56bb-d201-4d42-8d9c-130969dad8a5" />
+<img width="1190" height="886" alt="Captura de pantalla 2026-10-01 202536" src="https://github.com/user-attachments/assets/660d415e-20ee-4312-8d56-0dd95a32d77c" />
+<img width="1182" height="891" alt="Captura de pantalla 2026-10-01 202600" src="https://github.com/user-attachments/assets/9ebe4f96-5b1c-4946-952a-d6a2dc15ae26" />
+<img width="1178" height="891" alt="Captura de pantalla 2026-10-01 202626" src="https://github.com/user-attachments/assets/78904bfa-80c9-47e6-af1a-47e78b972a6e" />
+<img width="1151" height="890" alt="Captura de pantalla 2026-10-01 202704" src="https://github.com/user-attachments/assets/ea4ef533-dcde-4fdb-ac98-c8b4688cd205" />
+<img width="1180" height="888" alt="Captura de pantalla 2026-10-01 202731" src="https://github.com/user-attachments/assets/60fb6b32-9815-4f9b-bdca-5b9db79acdf1" />
+<img width="1182" height="891" alt="Captura de pantalla 2026-10-01 202743" src="https://github.com/user-attachments/assets/8501271a-ec29-4584-8808-82af3ca76ade" />
+<img width="1062" height="853" alt="Captura de pantalla 2026-10-01 202837" src="https://github.com/user-attachments/assets/fe40d1bf-6eaf-4a00-896e-95582ec1d43d" />
+<img width="1077" height="882" alt="Captura de pantalla 2026-10-01 202847" src="https://github.com/user-attachments/assets/47626964-40e4-4824-b51e-fffaf178421a" />
+<img width="1171" height="885" alt="Captura de pantalla 2026-10-01 202858" src="https://github.com/user-attachments/assets/bc3706e6-2e85-4009-8141-9eed371fcd3f" />
+<img width="1178" height="888" alt="Captura de pantalla 2026-10-01 202917" src="https://github.com/user-attachments/assets/58df1056-24bf-4d99-83ca-2615809685c8" />
+
+
+
 ## Cumplimiento de la rúbrica
 
 | Criterio | Implementación en el proyecto |

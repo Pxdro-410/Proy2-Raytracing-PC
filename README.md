@@ -68,6 +68,10 @@ La isla está construida como una carcasa circular de bloques y se divide por tr
 La interfaz incluye crosshair, barra de objetos, selector de espacio y un menú de inicio con las opciones **Join World**, **How to Play** y **Exit**. La banda sonora se reproduce en bucle y los botones tienen sonido al presionarse y liberarse.
 
 ## Demostración:
+### Link al video:
+https://youtu.be/7t1z2pphtVY
+
+### Imagenes de la escena:
 <img width="1192" height="892" alt="Captura de pantalla 2026-10-01 202340" src="https://github.com/user-attachments/assets/78025107-6030-43cb-be20-06efb65e9a81" />
 <img width="1195" height="896" alt="Captura de pantalla 2026-10-01 202328" src="https://github.com/user-attachments/assets/9b9fb19f-aa5f-4016-a3f4-1c0e4d453dfe" />
 <img width="1188" height="892" alt="Captura de pantalla 2026-10-01 202357" src="https://github.com/user-attachments/assets/d7be6da0-ac55-42d8-b1c2-0550c0f8170d" />
@@ -128,10 +132,6 @@ El mundo se guarda como voxeles indexados por coordenadas enteras. La intersecci
 - Renderizado a 960 × 720 y opción paralela para el desarrollo.
 
 Los componentes principales están en [`src/main.rs`](src/main.rs), [`src/world.rs`](src/world.rs), [`src/ray_intersect.rs`](src/ray_intersect.rs), [`src/materials.rs`](src/materials.rs), [`src/skybox.rs`](src/skybox.rs) y [`src/island.rs`](src/island.rs).
-
-## demostración
-
-pendiente de adjuntar
 
 ## Verificación
 
